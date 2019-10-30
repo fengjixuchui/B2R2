@@ -2,6 +2,7 @@
   B2R2 - the Next-Generation Reversing Platform
 
   Author: Seung Il Jung <sijung@kaist.ac.kr>
+          Sang Kil Cha <sangkilc@kaist.ac.kr>
 
   Copyright (c) SoftSec Lab. @ KAIST, since 2016
 
@@ -27,6 +28,8 @@
 namespace B2R2.FrontEnd.ARM32
 
 open B2R2
+open B2R2.FrontEnd
+open System.Text
 
 /// The internal representation for an ARM32 instruction used by our
 /// disassembler and lifter.
@@ -37,13 +40,22 @@ type ARM32Instruction (addr, numBytes, insInfo) =
 
   override __.IsBranch () =
     match __.Info.Opcode with
-    | Op.B | Op.CBNZ | Op.CBZ | Op.BL | Op.BLX | Op.BX | Op.BXJ | Op.TBB
-    | Op.TBH -> true
+    | Op.B | Op.BL | Op.BLX | Op.BX | Op.BXJ
+    | Op.CBNZ | Op.CBZ
+    | Op.TBB | Op.TBH -> true
+    | Op.LDR ->
+      match __.Info.Operands with
+      | TwoOperands (OprReg R.PC, _) -> true
+      | _ -> false
+    | Op.POP ->
+      match __.Info.Operands with
+      | OneOperand (OprRegList regs) -> List.contains R.PC regs
+      | _ -> false
     | _ -> false
 
   member __.HasConcJmpTarget () =
     match __.Info.Operands with
-    | OneOperand (Memory (LiteralMode _)) -> true
+    | OneOperand (OprMemory (LiteralMode _)) -> true
     | _ -> false
 
   override __.IsDirectBranch () =
@@ -58,6 +70,10 @@ type ARM32Instruction (addr, numBytes, insInfo) =
     | Op.B, Some Condition.NV -> false
     | Op.B, Some Condition.UN -> false
     | Op.B, Some _ -> true
+    | Op.BX, Some Condition.AL -> false
+    | Op.BX, Some Condition.NV -> false
+    | Op.BX, Some Condition.UN -> false
+    | Op.BX, Some _ -> true
     | _ -> false
 
   override __.IsCJmpOnTrue () =
@@ -77,22 +93,57 @@ type ARM32Instruction (addr, numBytes, insInfo) =
     | _ -> false
 
   override __.IsRET () =
-    match __.Info.Opcode, __.Info.Operands with
-    | Opcode.POP, OneOperand (Register R.PC) -> true
-    | _ -> false
+    Utils.futureFeature ()
 
-  override __.IsExit () = // FIXME
+  override __.IsInterrupt () =
+    __.Info.Opcode = Op.SVC
+
+  override __.IsExit () =
     __.IsDirectBranch () ||
-    __.IsIndirectBranch ()
+    __.IsIndirectBranch () ||
+    __.Info.Opcode = Op.SVC
 
   override __.DirectBranchTarget (addr: byref<Addr>) =
     if __.IsBranch () then
       match __.Info.Operands with
-      | OneOperand (Memory (LiteralMode offset)) ->
-        addr <- (int64 __.Address + offset) |> uint64
+      | OneOperand (OprMemory (LiteralMode target)) ->
+        (* The PC value of an instruction is its address plus 4 for a Thumb
+           instruction, or plus 8 for an ARM instruction. *)
+        let offset = if __.Info.Mode = ArchOperationMode.ARMMode then 8L else 4L
+        let pc = (int64 __.Address + offset) / 4L * 4L (* Align by 4 *)
+        addr <- ((pc + target) &&& 0xFFFFFFFFL) |> uint64
         true
       | _ -> false
     else false
+
+  override __.IndirectTrampolineAddr (_: byref<Addr>) =
+    false
+
+  member private __.GetNextMode () =
+    match __.Info.Opcode with
+    | Opcode.BLX
+    | Opcode.BX ->
+      if __.Info.Mode = ArchOperationMode.ARMMode then
+        ArchOperationMode.ThumbMode
+      else ArchOperationMode.ARMMode
+    | _ -> __.Info.Mode
+
+  member private __.AddBranchTargetIfExist addrs =
+    match __.DirectBranchTarget () |> Utils.tupleToOpt with
+    | None -> addrs
+    | Some target ->
+      Seq.singleton (target, __.GetNextMode ()) |> Seq.append addrs
+
+  override __.GetNextInstrAddrs () =
+    let acc = Seq.singleton (__.Address + uint64 __.Length, __.Info.Mode)
+    if __.IsCall () then acc |> __.AddBranchTargetIfExist
+    elif __.IsBranch () then
+      if __.IsCondBranch () then acc |> __.AddBranchTargetIfExist
+      else __.AddBranchTargetIfExist Seq.empty
+    elif __.Info.Opcode = Opcode.HLT then Seq.empty
+    else acc
+
+  override __.InterruptNum (num: byref<int64>) = Utils.futureFeature ()
 
   override __.IsNop () =
     __.Info.Opcode = Op.NOP
@@ -100,10 +151,25 @@ type ARM32Instruction (addr, numBytes, insInfo) =
   override __.Translate ctxt =
     Lifter.translate __.Info ctxt
 
+  member private __.StrBuilder _ (str: string) (acc: StringBuilder) =
+    acc.Append (str)
+
   override __.Disasm (showAddr, _resolveSymbol, _fileInfo) =
-    Disasm.disasm showAddr __.Info
+    let acc = StringBuilder ()
+    let acc = Disasm.disasm showAddr __.Info __.StrBuilder acc
+    acc.ToString ()
 
   override __.Disasm () =
-    Disasm.disasm false __.Info
+    let acc = StringBuilder ()
+    let acc = Disasm.disasm false __.Info __.StrBuilder acc
+    acc.ToString ()
+
+  member private __.WordBuilder kind str (acc: AsmWordBuilder) =
+    acc.Append ({ AsmWordKind = kind; AsmWordValue = str })
+
+  override __.Decompose () =
+    AsmWordBuilder (8)
+    |> Disasm.disasm true __.Info __.WordBuilder
+    |> fun b -> b.Finish ()
 
 // vim: set tw=80 sts=2 sw=2:

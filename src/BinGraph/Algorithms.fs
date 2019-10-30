@@ -26,14 +26,46 @@
 
 module B2R2.BinGraph.Algorithms
 
-let rec private kahnTopologicalSortLoop acc (g: SimpleDiGraph<_, _>) =
-  match g.Unreachables with
-  | [] -> acc
-  | vertices ->
-    let acc = List.fold (fun acc (v: Vertex<_>) -> v.VData :: acc) acc vertices
-    List.iter (fun v -> g.RemoveVertex v) vertices
+let rec private kahnTopologicalSortLoop acc (g: ControlFlowGraph<_, _>) =
+  if g.Unreachables.Count = 0 then acc
+  else
+    let acc =
+      g.Unreachables
+      |> Seq.toList
+      |> List.fold (fun acc (v: Vertex<_>) ->
+        g.RemoveVertex v
+        v.VData :: acc) acc
     kahnTopologicalSortLoop acc g
 
-let kahnTopologicalSort (g: SimpleDiGraph<_, _>) =
+let kahnTopologicalSort (g: ControlFlowGraph<_, _>) =
   let h = g.Clone ()
   List.rev <| kahnTopologicalSortLoop [] h
+
+let rec checkStack visited (stack: Vertex<_> list) orderMap cnt =
+  match stack with
+  | [] -> stack, orderMap, cnt
+  | v :: stack ->
+    if List.exists (fun s -> Set.contains s visited |> not) v.Succs then
+      v :: stack, orderMap, cnt
+    else
+      let orderMap = Map.add v cnt orderMap
+      checkStack visited stack orderMap (cnt - 1)
+
+let topologicalOrdering (visited, stack, orderMap, cnt) v =
+  if Set.contains v visited then
+    visited, stack, orderMap, cnt
+  else
+    let visited = Set.add v visited
+    let stack, orderMap, cnt = checkStack visited (v :: stack) orderMap cnt
+    visited, stack, orderMap, cnt
+
+let dfsTopologicalSort (g: DiGraph<_, _>) root =
+  let size = g.Size () - 1
+  let _, _, dfsOrder, _ =
+    g.FoldVertexDFS root topologicalOrdering (Set.empty, [], Map.empty, size)
+  /// XXX: The below is normalizing. This is also a temporary patch..
+  let min = Map.fold (fun acc _ x -> if acc < x then acc else x) (-1) dfsOrder
+  let dfsOrder = Map.map (fun _ x -> x - min) dfsOrder
+  let size = g.Size ()
+  g.FoldVertex (fun acc v ->
+    if Map.containsKey v acc then acc else Map.add v size acc) dfsOrder

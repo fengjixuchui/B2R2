@@ -29,45 +29,45 @@ module B2R2.BinFile.FormatDetector
 
 open System.IO
 open B2R2
-open B2R2.BinFile.FileHelper
 
-let private checkELF reader offset =
-  if ELF.isELFHeader reader offset then
-    let cls = ELF.readClass reader offset
-    let e = ELF.readEndianness reader offset
-    let reader = BinReader.RenewReader reader e
-    Some (FileFormat.ELFBinary, ISA.Init (ELF.readArch reader cls offset) e)
+let private elfBinary reader =
+  if ELF.Header.isELF reader 0 then Some FileFormat.ELFBinary
   else None
 
-let private checkPE reader offset =
-  if PE.isPEHeader reader offset then
-    Some (FileFormat.PEBinary,
-          ISA.Init (PE.parsePEArch reader offset) Endian.Little)
-  else None
+let private peBinary bytes =
+  try PE.Helper.parseFormat bytes 0 |> ignore
+      Some (FileFormat.PEBinary)
+  with _ -> None
 
-let private checkMach reader offset =
-  if Mach.isMachHeader reader offset then
-    let e = Mach.readEndianness reader offset
-    let reader = BinReader.RenewReader reader e
-    Some (FileFormat.MachBinary, ISA.Init (Mach.readArch reader offset) e)
+let private machBinary reader =
+  if Mach.Header.isMach reader 0 then Some FileFormat.MachBinary
   else None
 
 /// <summary>
-/// Given a binary file, identify file format and return a tuple of
-/// (B2R2.FileFormat and B2R2.ISA).
+///   Given a byte array, identify its file format and return a tuple of
+///   (B2R2.FileFormat and B2R2.ISA).
+/// </summary>
+[<CompiledName("Detect")>]
+let detectBuffer bytes =
+  let reader = BinReader.Init (bytes)
+  Monads.OrElse.orElse {
+    yield! elfBinary reader
+    yield! peBinary bytes
+    yield! machBinary reader
+    yield! Some FileFormat.RawBinary
+  } |> Option.get
+
+
+/// <summary>
+///   Given a binary file path, identify its file format and return a tuple of
+///   (B2R2.FileFormat and B2R2.ISA).
 /// </summary>
 [<CompiledName("Detect")>]
 let detect file =
   use f = File.OpenRead (file)
-  let maxBytes = 2000 (* This is more than enough for all three file formats. *)
+  let maxBytes = 2048 (* This is more than enough for all the file formats. *)
   let bytes = Array.create maxBytes 0uy
   f.Read (bytes, 0, maxBytes) |> ignore
-  let reader = BinReader.Init (bytes)
-  Monads.OrElse.orElse {
-    yield! checkELF reader startOffset
-    yield! checkPE reader startOffset
-    yield! checkMach reader startOffset
-    yield! Some (FileFormat.RawBinary, ISA.Init (Arch.IntelX86) Endian.Little)
-  } |> Option.get
+  detectBuffer bytes
 
 // vim: set tw=80 sts=2 sw=2:

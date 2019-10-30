@@ -33,6 +33,9 @@ type WordSize =
   | Bit32 = 32
   | Bit64 = 64
 
+/// This exception is raised when an invalid WordSize is encountered.
+exception InvalidWordSizeException
+
 /// A helper module for the WordSize type.
 module WordSize =
 
@@ -49,3 +52,9 @@ module WordSize =
     | WordSize.Bit32 -> 32<rt>
     | WordSize.Bit64 -> 64<rt>
     | _ -> failwith "Unknown WordSize."
+
+  /// Is the given word size 32 bit?
+  let is32 wordSz = wordSz = WordSize.Bit32
+
+  /// Is the given word size 64 bit?
+  let is64 wordSz = wordSz = WordSize.Bit64

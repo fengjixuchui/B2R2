@@ -124,6 +124,14 @@ type Instruction (addr, numBytes, wordSize) =
   abstract member IsRET: unit -> bool
 
   /// <summary>
+  ///   Does this instruction involve an interrupt?
+  /// </summary>
+  /// <returns>
+  ///   Returns true if this is an interrupt instruction
+  /// </returns>
+  abstract member IsInterrupt: unit -> bool
+
+  /// <summary>
   ///   Does this instruction exit a basic block? For example, this function
   ///   returns true for the <c>HLT</c> instruction of Intel. We also consider
   ///   system call instructions as an exit instruction.
@@ -150,6 +158,31 @@ type Instruction (addr, numBytes, wordSize) =
   ///   Returns true if a target address exists. Otherwise, returns false.
   /// </returns>
   abstract member DirectBranchTarget: [<Out>] addr: byref<Addr> -> bool
+
+  /// <summary>
+  ///   Return a trampoline address of an indirect branch instruction if we can
+  ///   directly compute the address. For example, `JMP [RIP + 0x42]` is an
+  ///   indirect branch instruction, but we can compute the trampoline address
+  ///   as RIP is statically known anyways.
+  /// </summary>
+  /// <returns>
+  ///   Returns true if a trampoline address exists. Otherwise, returns false.
+  /// </returns>
+  abstract member IndirectTrampolineAddr: [<Out>] addr: byref<Addr> -> bool
+
+  /// <summary>
+  ///   Return a sequence of possible next instruction addresses along with
+  ///   their ArchOperationMode. For branch instructions, the returned sequence
+  ///   includes jump target(s). For regular instructions, the sequence is a
+  ///   singleton of the fall-through address. This function does not resolve
+  ///   indirect branch targets.
+  /// </summary>
+  abstract member GetNextInstrAddrs: unit -> seq<Addr * ArchOperationMode>
+
+  /// <summary>
+  ///   Return the interrupt number if this is an interrupt instruction.
+  /// </summary>
+  abstract member InterruptNum: [<Out>] num: byref<int64> -> bool
 
   /// <summary>
   ///   Lift this instruction into a LowUIR given a translation context.
@@ -191,5 +224,13 @@ type Instruction (addr, numBytes, wordSize) =
   ///   Returns a disassembled string.
   /// </returns>
   abstract member Disasm: unit -> string
+
+  /// <summary>
+  ///   Decompose this instruction into AsmWords.
+  /// </summary>
+  /// <returns>
+  ///   Returns an array of AsmWords.
+  /// </returns>
+  abstract member Decompose: unit -> AsmWord []
 
 // vim: set tw=80 sts=2 sw=2:

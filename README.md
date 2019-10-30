@@ -1,5 +1,6 @@
 ![alt text](https://b2r2.org//images/b2r2-2d.png)
 
+[![Build status](https://ci.appveyor.com/api/projects/status/0c0tcxh813ev8w6i?svg=true)](https://ci.appveyor.com/project/sangkilc/b2r2)
 [![Build Status](https://travis-ci.com/B2R2-org/B2R2.svg?branch=master)](https://travis-ci.com/B2R2-org/B2R2)
 ![](https://img.shields.io/github/license/B2R2-org/B2R2.svg?style=flat)
 [![](https://img.shields.io/nuget/vpre/B2R2.FrontEnd.svg?style=flat)](https://www.nuget.org/packages/B2R2.FrontEnd)
@@ -28,9 +29,10 @@ B2R2?
    naturally supports *pure parallelism* for binary disassembling, lifting and
    IR optimization.
 
-1. B2R2 is *easy* to play with: there is absolutely no dependency hell for B2R2:
-   All you need to do is to install [.NET Core
-   SDK](https://dotnet.microsoft.com/download), and you are ready to go! Native
+1. B2R2 is *easy* to play with: there is absolutely no dependency hell for B2R2
+   because it is a fully-managed library.  All you need to do is to install
+   [.NET Core SDK](https://dotnet.microsoft.com/download), and you are ready to
+   go! Native
    [IntelliSense](https://docs.microsoft.com/en-us/visualstudio/ide/using-intellisense?view=vs-2017)
    support is another plus!
 
@@ -58,9 +60,13 @@ which can help explore such features using a simple command line interface.
 Dependencies?
 -------------
 
-B2R2 itself does *not* rely on any external libraries. So, you really don't need
-to install any other libraries in order to build B2R2! Just install .NET core,
-and that's all.
+B2R2 relies on a tiny set of external .NET libraries, and our design principle
+is to use a minimum number of libraries. Below is a list of libraries that we
+leverage.
+
+- [System.Reflection.Metadata](https://www.nuget.org/packages/System.Reflection.Metadata/)
+- [Microsoft.FSharpLu.Json](https://www.nuget.org/packages/Microsoft.FSharpLu.Json/)
+- [FParsec](https://www.nuget.org/packages/FParsec)
 
 API Documentation
 -----------------
@@ -87,7 +93,7 @@ Let's try to use B2R2 APIs.
 1. Add our nuget package *B2R2.FrontEnd* to the project:
 
     ```
-    $ dotnet add package B2R2.FrontEnd --version 0.1.0
+    $ dotnet add package B2R2.FrontEnd
     ```
 
 1. Modify the `Program.fs` file with your favorite editor as follows:
@@ -114,7 +120,7 @@ Build
 -----
 
 Building B2R2 is fun and easy. All you need to do is to install .NET Core SDK
-2.0 or above. Yea, that's it!
+3.0 or above. Yea, that's it!
 
 - To build B2R2 in release mode, type ```make release``` or ```dotnet build -c
   Release``` in the source root.
@@ -147,7 +153,6 @@ contributions! Feel free to write a PR (Pull Requst) while making sure that you
 have read our [contribution guideline](CONTRIBUTING.md).
 
 - Implement CFG recovery algorithms.
-- Implement function boundary identification algorithms.
 - Implement assembler for currently supported ISAs using a parser combinator.
 - Support for floating point operations.
 - Support for more architectures such as PPC.
@@ -163,7 +168,7 @@ Citation
 --------
 
 If you plan to use B2R2 in your own research. Please consider citing our
-[paper](https://FIXME):
+[paper](https://softsec.kaist.ac.kr/~sangkilc/papers/jung-bar19.pdf):
 
 ```bibtex
 @INPROCEEDINGS{jung:bar:2019,

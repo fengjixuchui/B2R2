@@ -28,15 +28,22 @@ module internal B2R2.Utilities.BinExplorer.CmdSpec
 
 /// Command specification in *alphabetic* order. The entries in this list
 /// should match with the KeyWords of help commands (in defaultCmds).
-let spec =
+let speclist =
   [
     CmdBinInfo () :> Cmd
     CmdCredits () :> Cmd
+    CmdDemangle () :> Cmd
+    CmdEvalExpr () :> Cmd
+    CmdEvalExprOctal () :> Cmd
+    CmdEvalExprBinary () :> Cmd
+    CmdEvalExprDecimal () :> Cmd
+    CmdEvalExprFloat () :> Cmd
     CmdDisasm () :> Cmd
     CmdGadgetSearch () :> Cmd
     CmdROP () :> Cmd
     CmdList () :> Cmd
     CmdSearch () :> Cmd
+    CmdShow () :> Cmd
     CmdHexDump () :> Cmd
     CmdPrint () :> Cmd
     (* Default commands *)

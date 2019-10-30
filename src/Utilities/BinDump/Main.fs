@@ -44,24 +44,32 @@ type OptOption =
   | Opt
   | OptPar
 
-/// Indicate whether the input format should be automatically inferred or is
-/// simply given by the user.
-type FormatRequest =
-  | GivenFormat of FileFormat
-  | UndiscoveredFormat
+type BinDumpOpts (autoDetect, isa) =
+  inherit CmdOpts()
 
-/// If the format is already given by a user, this function simply returns a
-/// tuple of file format and architecture. When the format is yet discovered,
-/// this function reads the given file to detect its file format, and returns
-/// the corresponding result.
-let returnFormat file isa = function
-  | GivenFormat fmt -> fmt, isa
-  | UndiscoveredFormat -> FormatDetector.detect file
+  /// Input file path.
+  member val InputFile = "" with get, set
 
-type BinDumpOpts (fmt, isa) =
-  inherit CmdOpts(isa)
+  /// Input string from command line.
+  member val InputStr: byte [] = [||] with get, set
+
+  /// ISA
+  member val ISA = isa with get, set
+
+  /// ArchOperationMode
+  member val ArchOperationMode = ArchOperationMode.NoMode with get, set
+
+  /// Base address
+  member val BaseAddress: Addr = 0UL with get, set
+
+  /// Whether to show addresses or not
+  member val ShowAddress = false with get, set
+
+  /// Show symbols or not?
+  member val ShowSymbols = false with get, set
+
   /// Discover binary file format or not?
-  member val FormatReq = fmt with get, set
+  member val AutoDetect = autoDetect with get, set
 
   /// Disassemble or IR-translate?
   member val DumpMethod = LowUIRLift with get, set
@@ -73,6 +81,59 @@ type BinDumpOpts (fmt, isa) =
     match opts with
     | :? BinDumpOpts as opts -> opts
     | _ -> failwith "Invalid Opts."
+
+  /// "-a" or "--isa" option for specifying ISA.
+  static member OptISA () =
+    let cb (opts: #CmdOpts) (arg: string []) =
+      (BinDumpOpts.ToThis opts).ISA <- ISA.OfString arg.[0]; opts
+    CmdOpts.New ( descr = "Specify <ISA> (e.g., x86) from command line",
+                  extra = 1, callback = cb, short = "-a", long= "--isa" )
+
+  /// "-i" option for specifying an input file.
+  static member OptInputFile () =
+    let cb (opts: #CmdOpts) (arg: string []) =
+      (BinDumpOpts.ToThis opts).InputFile <- arg.[0]; opts
+    CmdOpts.New ( descr = "Specify an input <file>",
+                  extra = 1, callback = cb, short = "-i" )
+
+  /// "-s" option for specifying an input string.
+  static member OptInputString () =
+    let cb (opts: #CmdOpts) (arg: string []) =
+      (BinDumpOpts.ToThis opts).InputStr <- ByteArray.ofHexString arg.[0]; opts
+    CmdOpts.New ( descr = "Specify an input <hexstring> from command line",
+                  extra = 1, callback = cb, short = "-s" )
+
+  /// "-m" or "--mode" option for specifying ArchOperationMode.
+  static member OptArchMode () =
+    let cb (opts: #CmdOpts) (arg: string []) =
+      (BinDumpOpts.ToThis opts).ArchOperationMode <-
+        ArchOperationMode.ofString arg.[0]
+      opts
+    CmdOpts.New (
+      descr = "Specify <operation mode> (e.g., thumb/arm) from cmdline",
+      extra = 1, callback = cb, short = "-m", long= "--mode" )
+
+  /// "-r" or "--base-addr" option for specifying a base address.
+  static member OptBaseAddr () =
+    let cb (opts: #CmdOpts) (arg: string []) =
+      (BinDumpOpts.ToThis opts).BaseAddress <- Convert.ToUInt64 (arg.[0], 16)
+      (BinDumpOpts.ToThis opts).ShowAddress <- true
+      opts
+    CmdOpts.New ( descr = "Specify the base <address> in hex (default=0)",
+                  extra = 1, callback = cb, short = "-r", long = "--base-addr" )
+
+  /// "--show-addr" option decides whether to show addresses in disassembly.
+  static member OptShowAddr () =
+    let cb (opts: #CmdOpts) _ =
+      (BinDumpOpts.ToThis opts).ShowAddress <- true; opts
+    CmdOpts.New ( descr = "Show addresses in disassembly",
+                  callback = cb, long = "--show-addr" )
+
+  static member OptShowSymbols () =
+    let cb (opts: #CmdOpts) _ =
+      (BinDumpOpts.ToThis opts).ShowSymbols <- true; opts
+    CmdOpts.New ( descr = "Show symbols while disassembling binary",
+                  callback = cb, long = "--show-symbols")
 
   static member OptDisasm () =
     let cb (opts: #CmdOpts) _ =
@@ -98,58 +159,59 @@ type BinDumpOpts (fmt, isa) =
     CmdOpts.New ( descr = "Perform parallel bblock optimization for IL",
                   callback = cb, long = "--par-optimize")
 
-/// "-f" or "--input-format" option for specifying an input format.
-  static member OptInputFormat () =
-    let cb (opts: BinDumpOpts) (arg: string []) =
-      opts.FormatReq <- match arg.[0].ToLower () with
-                          | "auto" -> UndiscoveredFormat
-                          | str -> GivenFormat (FileFormat.ofString str)
+  static member OptRawBinary () =
+    let cb (opts: BinDumpOpts) _ =
+      opts.AutoDetect <- false
       opts
-    CmdOpts.New (
-      descr = "Specify input <format> (RAW|ELF|PE|MACH|AUTO)",
-      extra = 1, callback = cb, short = "-f", long = "--input-format" )
+    CmdOpts.New ( descr = "Turn off file format detection",
+                  callback = cb, long = "--raw-binary" )
 
 let spec =
   [
     CmdOpts.New (descr = "[Input Configuration]\n", dummy = true)
 
-    CmdOpts.OptInputFile ()
-    CmdOpts.OptInputString ()
-    BinDumpOpts.OptInputFormat ()
-    CmdOpts.OptISA ()
-    CmdOpts.OptArchMode ()
+    BinDumpOpts.OptInputFile ()
+    BinDumpOpts.OptInputString ()
+    BinDumpOpts.OptISA ()
+    BinDumpOpts.OptArchMode ()
+    BinDumpOpts.OptRawBinary ()
 
     CmdOpts.New (descr = "\n[Output Configuration]\n", dummy = true)
 
     BinDumpOpts.OptDisasm ()
     BinDumpOpts.OptTransIR ()
-    CmdOpts.OptShowAddr ()
+    BinDumpOpts.OptShowAddr ()
+    BinDumpOpts.OptShowSymbols ()
 
     CmdOpts.New (descr = "\n[Optional Configuration]\n", dummy = true)
 
-    CmdOpts.OptBaseAddr ()
+    BinDumpOpts.OptBaseAddr ()
     BinDumpOpts.OptTransOptimization ()
     BinDumpOpts.OptTransParOptimization()
 
     CmdOpts.New (descr = "\n[Extra]\n", dummy = true)
 
-    CmdOpts.OptQuite ()
+    CmdOpts.OptVerbose ()
     CmdOpts.OptHelp ()
   ]
 
 let initWithFile (opts: BinDumpOpts) =
-  let formatReq = opts.FormatReq
-  let fmt, isa = returnFormat opts.InputFile opts.ISA formatReq
   BinHandler.Init (
-    isa, opts.ArchOperationMode, fmt, opts.BaseAddress, opts.InputFile)
+    opts.ISA,
+    opts.ArchOperationMode,
+    opts.AutoDetect,
+    opts.BaseAddress,
+    opts.InputFile
+  )
 
 let initWithBytes (opts: BinDumpOpts) =
   BinHandler.Init (
     opts.ISA,
     opts.ArchOperationMode,
-    FileFormat.RawBinary,
+    false,
     opts.BaseAddress,
-    opts.InputStr)
+    opts.InputStr
+  )
 
 let isInvalidCmdLine (opts: BinDumpOpts) =
   Array.isEmpty opts.InputStr && String.IsNullOrEmpty opts.InputFile
@@ -186,37 +248,41 @@ let inline parseUntil hdl sAddr eAddr =
     else List.rev acc
   loop sAddr []
 
-let pickNext hdl eAddr untilFn bbFn sAddr = function
+let pickNext hdl eAddr untilFn bbFn sAddr r =
+  match r with
+  | Error (res, nextAddr) when nextAddr = eAddr -> bbFn res; None
   | Ok (_, nextAddr) | Error (_, nextAddr) when nextAddr > eAddr ->
     untilFn sAddr |> ignore; None
   | Ok (res, nextAddr) -> bbFn res; Some nextAddr
   | Error (res, nextAddr) ->
     bbFn res; printIllegal (); getNextAddr hdl nextAddr |> Some
 
-let printDisasmUntil hdl showAddr sAddr eAddr =
+let printDisasmUntil hdl showAddr showSymbs sAddr eAddr =
   let printFn = function
-    | Some ins -> BinHandler.DisasmInstr hdl showAddr false ins
-                  |> Console.WriteLine
+    | Some ins ->
+      BinHandler.DisasmInstr hdl showAddr showSymbs ins |> Console.WriteLine
     | None -> printIllegal ()
   parseUntil hdl sAddr eAddr |> List.iter printFn
 
 let printDisasm result = printIfNotEmpty result
 
-let printBlkDisasm showAddr hdl sA eA =
-  let untilFn sA = printDisasmUntil hdl showAddr sA eA
+let printBlkDisasm showAddr showSymbs hdl sA eA =
+  let untilFn sA = printDisasmUntil hdl showAddr showSymbs sA eA
   let digest = pickNext hdl eA untilFn printDisasm
   let rec loop sA =
     if sA >= eA then ()
-    else match BinHandler.DisasmBBlock hdl showAddr false sA |> digest sA with
-         | Some n -> loop n
-         | None -> ()
+    else
+      match BinHandler.DisasmBBlock hdl showAddr showSymbs sA |> digest sA with
+      | Some n -> loop n
+      | None -> ()
   loop sA
 
 let printLowUIRUntil hdl sAddr eAddr =
   let printFn = function
-    | Some ins -> BinHandler.LiftInstr hdl ins
-                  |> LowUIR.Pp.stmtsToString
-                  |> Console.WriteLine
+    | Some ins ->
+      BinHandler.LiftInstr hdl ins
+      |> LowUIR.Pp.stmtsToString
+      |> Console.WriteLine
     | None -> printIllegal ()
   parseUntil hdl sAddr eAddr |> List.iter printFn
 
@@ -281,10 +347,11 @@ let getSectionRanges handle =
     if section.Size > 0UL then section.ToAddrRange () :: acc else acc
   handle.FileInfo.GetExecutableSections ()
   |> Seq.fold folder []
+  |> List.sortBy (fun r -> r.Min)
 
-let getActor action showAddr hdl opt =
+let getActor action showAddr showSymbs hdl opt =
   match action, opt with
-  | Disassemble, _     -> printBlkDisasm showAddr hdl
+  | Disassemble, _     -> printBlkDisasm showAddr showSymbs hdl
   | LowUIRLift, NoOpt  -> printBlkLowUIR (fun x -> x) hdl
   | LowUIRLift, Opt    -> printBlkLowUIR (BinHandler.Optimize) hdl
   | LowUIRLift, OptPar -> parPrintOptBlkLowUIR hdl
@@ -294,24 +361,22 @@ let cmdErrExit () =
             See bindump --help for more info."
   exit 1
 
-let dump (opts: BinDumpOpts) =
+let dump _ (opts: BinDumpOpts) =
   if isInvalidCmdLine opts then cmdErrExit () else ()
   let handle = initHandle opts
   let secRanges = getSectionRanges handle
   let action = opts.DumpMethod
   let showAddr = opts.ShowAddress
-  let doOpt = opts.DoOptimization
-  let disasmFn = BinHandler.DisasmBBlock
-  let liftFn = BinHandler.LiftBBlock
-  let actor = opts.DoOptimization |> getActor action showAddr handle
+  let showSymbs = opts.ShowSymbols
+  let actor = opts.DoOptimization |> getActor action showAddr showSymbs handle
   if secRanges.IsEmpty then ()
-  else List.iter (fun sR -> actor (AddrRange.GetMin sR) (AddrRange.GetMax sR))
-        secRanges
+  else
+    secRanges
+    |> List.iter (fun sR -> actor (AddrRange.GetMin sR) (AddrRange.GetMax sR))
 
 [<EntryPoint>]
 let main args =
-  let fmt = GivenFormat FileFormat.RawBinary
-  let opts = BinDumpOpts (fmt, ISA.Init (Arch.IntelX86) Endian.Little)
-  CmdOpts.ParseAndRun dump spec opts args
+  let opts = BinDumpOpts (true, ISA.Init (Arch.IntelX86) Endian.Little)
+  CmdOpts.ParseAndRun dump "" spec opts args
 
 // vim: set tw=80 sts=2 sw=2:

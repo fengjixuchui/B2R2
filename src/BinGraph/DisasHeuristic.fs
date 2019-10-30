@@ -2,7 +2,7 @@
   B2R2 - the Next-Generation Reversing Platform
 
   Author: Sang Kil Cha <sangkilc@kaist.ac.kr>
-          DongYeop Oh <oh51dy@kaist.ac.kr>
+          Jaeseung Choi <jschoi17@kaist.ac.kr>
 
   Copyright (c) SoftSec Lab. @ KAIST, since 2016
 
@@ -25,108 +25,86 @@
   SOFTWARE.
 *)
 
-module B2R2.BinGraph.DisasHeuristic
+namespace B2R2.BinGraph
 
 open B2R2
-open B2R2.BinIR.LowUIR.Eval
 open B2R2.FrontEnd
+open B2R2.ConcEval
+open B2R2.BinGraph.EmulationHelper
 
-/// An arbitrary stack value for applying heuristics.
-let stackAddr t = Def (BitVector.ofInt32 0x1000000 t)
+module private LibcAnalysisHelper =
 
-let getStackPtrRegID = function
-  | Arch.IntelX86 -> Intel.Register.ESP |> Intel.Register.toRegID
-  | Arch.IntelX64 -> Intel.Register.RSP |> Intel.Register.toRegID
-  | _ -> failwith "Not supported arch."
+  let retrieveAddrsForx86 hdl app st =
+    let esp = (Intel.Register.ESP |> Intel.Register.toRegID)
+    match EvalState.GetReg st esp with
+    | Def sp ->
+      let p1 = BitVector.add (BitVector.ofInt32 4 32<rt>) sp
+      let p4 = BitVector.add (BitVector.ofInt32 16 32<rt>) sp
+      let p5 = BitVector.add (BitVector.ofInt32 20 32<rt>) sp
+      let p6 = BitVector.add (BitVector.ofInt32 24 32<rt>) sp
+      [ readMem st p1 Endian.Little 32<rt>
+        readMem st p4 Endian.Little 32<rt>
+        readMem st p5 Endian.Little 32<rt>
+        readMem st p6 Endian.Little 32<rt> ]
+      |> List.choose id
+      |> List.filter (fun addr -> app.InstrMap.ContainsKey addr |> not)
+      |> function
+        | [] -> app
+        | addrs ->
+          addrs
+          |> List.map (InstrMap.translateEntry hdl)
+          |> BinaryApparatus.update hdl app
+    | Undef -> app
 
-let initStateForLibcStart handle startAddr =
-  let isa = handle.ISA
-  // FIXME
-  let sp = getStackPtrRegID isa.Arch
-  let vars = match isa.Arch with
-             | Arch.IntelX86 -> Map.add sp (stackAddr 32<rt>) Map.empty
-             | Arch.IntelX64 -> Map.add sp (stackAddr 64<rt>) Map.empty
-             | _ -> failwith "Not supported arch."
-  {
-    PC = startAddr
-    BlockEnd = false
-    Vars = vars
-    TmpVars = Map.empty
-    Mems = Map.empty
-    NextStmtIdx = 0
-    LblMap = Map.empty
-  }
+  let retrieveAddrsForx64 hdl app st =
+    [ readReg st (Intel.Register.RDI |> Intel.Register.toRegID)
+      readReg st (Intel.Register.RCX |> Intel.Register.toRegID)
+      readReg st (Intel.Register.R8 |> Intel.Register.toRegID)
+      readReg st (Intel.Register.R9 |> Intel.Register.toRegID) ]
+    |> List.choose id
+    |> List.map (BitVector.toUInt64)
+    |> List.filter (fun addr -> app.InstrMap.ContainsKey addr |> not)
+    |> function
+      | [] -> app
+      | addrs ->
+        addrs
+        |> List.map (InstrMap.translateEntry hdl)
+        |> BinaryApparatus.update hdl app
 
-let intel32LibcParams acc st =
-  let f addr acc =
-    try (loadMem st.Mems Endian.Little addr 32<rt> |> BitVector.toUInt64) :: acc
-    with InvalidMemException -> acc
-  /// 1st, 4th, and 5th parameter of _libc_start_main
-  match Map.tryFind (Intel.Register.ESP |> Intel.Register.toRegID) st.Vars with
-  | Some (Def esp) -> let esp = BitVector.toUInt64 esp
-                      f esp acc |> f (esp + 12UL) |> f (esp + 16UL)
-  | _ -> acc
+  let retrieveLibcStartAddresses hdl app = function
+    | None -> app
+    | Some st ->
+      match hdl.ISA.Arch with
+      | Arch.IntelX86 -> retrieveAddrsForx86 hdl app st
+      | Arch.IntelX64 -> retrieveAddrsForx64 hdl app st
+      | _ -> app
 
-let intel64LibcParams acc st =
-  let f var acc =
-    match Map.tryFind (Intel.Register.toRegID var) st.Vars with
-    | Some (Def addr) -> (BitVector.toUInt64 addr) :: acc
-    | _ -> acc
-  /// 1st, 4th, and 5th parameter of _libc_start_main
-  f Intel.Register.RDI acc |> f Intel.Register.RCX |> f Intel.Register.R8
+  let analyzeLibcStartMain hdl (scfg: SCFG) app callerAddr =
+    match scfg.FindFunctionVertex callerAddr with
+    | None -> app
+    | Some root ->
+      let st = EvalState (memoryReader hdl, true)
+      let rootAddr = root.VData.PPoint.Address
+      let st = initRegs hdl |> EvalState.PrepareContext st 0 rootAddr
+      try
+        eval scfg root st (fun last -> last.Address = callerAddr)
+        |> retrieveLibcStartAddresses hdl app
+      with _ -> app
 
-let findNewLeadersByLibcHeuristic acc handle st =
-  match handle.ISA.Arch with
-  | Arch.IntelX86 -> intel32LibcParams acc st
-  | Arch.IntelX64 -> intel64LibcParams acc st
-  | _ -> failwith "Not supported arch."
+  let recoverAddrsFromLibcStartMain hdl scfg app =
+    match app.CalleeMap.Find "__libc_start_main" with
+    | Some callee ->
+      match List.tryExactlyOne callee.Callers with
+      | None -> app
+      | Some caller -> analyzeLibcStartMain hdl scfg app caller
+    | None -> app
 
-let rec buildBlock acc startAddr endAddr instrMap =
-  let ins: 'T when 'T :> Instruction = Map.find startAddr instrMap
-  let nextAddr = startAddr + uint64 ins.Length
-  if nextAddr = endAddr then List.rev (ins :: acc)
-  else buildBlock (ins :: acc) nextAddr endAddr instrMap
+  let recoverLibcEntries hdl scfg app =
+    match hdl.FileInfo.FileFormat with
+    | FileFormat.ELFBinary -> recoverAddrsFromLibcStartMain hdl scfg app
+    | _ -> app
 
-/// Evaluate concretely, but ignore any expressions that involve unknown values.
-let analyzeLibcStartBlock st stmts =
-  Array.fold (fun st stmt ->
-    try evalStmt st emptyCallBack stmt with
-    | UnknownVarException (* Simply ignore exceptions *)
-    | InvalidMemException -> st
-  ) st stmts
-
-let getLibcFuncPtrArgs acc handle leaders instrMap (callerAddr: Addr) =
-  let s, _ = Set.partition (fun leaderAddr -> leaderAddr < callerAddr) leaders
-  let blockLeader = Set.maxElement s
-  let blk = buildBlock [] blockLeader callerAddr instrMap
-  let ir = List.map (fun ins -> BinHandler.LiftInstr handle ins) blk
-  let st = initStateForLibcStart handle blockLeader
-  let st = List.fold analyzeLibcStartBlock st ir
-  let acc = findNewLeadersByLibcHeuristic acc handle st
-  acc, instrMap
-
-let isLibcStartMain (handle: BinHandler) = function
-  | true, "__libc_start_main" -> FileFormat.isELF handle.FileInfo.FileFormat
-  | _, _ -> false
-
-let isCallTargetLibcStart handle (ins: 'T when 'T :> Instruction) =
-  match ins.DirectBranchTarget () with
-  | false, _ -> false
-  | true, addr ->
-    handle.FileInfo.TryFindFunctionSymbolName addr
-    |> isLibcStartMain handle
-
-let isCallingLibcStart handle (ins: 'T when 'T :> Instruction) =
-  ins.IsCall () && isCallTargetLibcStart handle ins
-
-/// Examine __libc_start_main's arguments with copy propagation
-let recoverLibcPtrs acc handle leaders exits instrMap =
-  let callers = List.filter (fun ins -> isCallingLibcStart handle ins) exits
-  match callers with
-  | [i] -> getLibcFuncPtrArgs acc handle leaders instrMap i.Address
-  | _ -> acc, instrMap
-
-let recover handle leaders exits instrMap =
-  recoverLibcPtrs [] handle leaders exits instrMap
-
-// vim: set tw=80 sts=2 sw=2:
+type LibcAnalysis () =
+  interface IPostAnalysis with
+    member __.Run hdl scfg app =
+      LibcAnalysisHelper.recoverLibcEntries hdl scfg app

@@ -28,6 +28,7 @@ namespace B2R2.ROP
 
 open System
 open B2R2
+open B2R2.BinIR
 open B2R2.BinIR.LowUIR
 open B2R2.ROP.Simplify
 
@@ -149,7 +150,7 @@ module State =
     | Put (Var (_, _, reg, _), value) -> evalPutVar state reg value
     | Put (TempVar (_, reg), value) -> evalPutTemp state reg value
     | Store (endian, addr, value) -> evalStore state endian addr value
-    | InterJmp (PCVar (_, pc), value) -> evalPutVar state pc value
+    | InterJmp (PCVar (_, pc), value, _) -> evalPutVar state pc value
     | Stmt.SideEffect eff -> evalSideEff state eff
     | e -> failwithf "evalStmt fail %A" e
 

@@ -28,6 +28,7 @@
 module B2R2.FrontEnd.ARM32.Parser
 
 open B2R2
+open B2R2.FrontEnd
 
 let getThumbBytes (reader: BinReader) pos =
   let struct (b, nextPos) = reader.ReadUInt16 pos
@@ -45,43 +46,43 @@ let isARMv8 = function
   | Arch.AARCH32 -> true
   | _ -> false
 
-let getThumbParser = function
-  | 2u -> Parserv7.parseV7Thumb16
-  | 4u -> Parserv7.parseV7Thumb32
+let getThumbParser ctxt bin = function
+  | 2u -> Parserv7.parseV7Thumb16 ctxt bin
+  | 4u -> Parserv7.parseV7Thumb32 ctxt bin
   | _ -> failwith "Invalid instruction length"
 
-let inline private newInsInfo addr c opcode qualifier simd oprs instrLen mode =
-  let insInfo = {
-    Address = addr
-    NumBytes = instrLen
-    Condition  = c
-    Opcode = opcode
-    Operands = oprs
-    Qualifier = qualifier
-    SIMDTyp = simd
-    Mode = mode
-  }
-  ARM32Instruction (addr, instrLen, insInfo)
+let inline private newInsInfo addr c opcode it w q simd oprs iLen mode cflag =
+  let insInfo =
+    { Address = addr
+      NumBytes = iLen
+      Condition  = c
+      Opcode = opcode
+      Operands = oprs
+      ITState = it
+      WriteBack = w
+      Qualifier = q
+      SIMDTyp = simd
+      Mode = mode
+      Cflag = cflag }
+  ARM32Instruction (addr, iLen, insInfo)
 
-let parse reader arch mode addr pos itState =
+let parse reader (ctxt: ParsingContext) arch addr pos =
+  let mode = ctxt.ArchOperationMode
   let struct (bin, nextPos) =
     match mode with
     | ArchOperationMode.ThumbMode -> getThumbBytes reader pos
     | ArchOperationMode.ARMMode -> reader.ReadUInt32 pos
     | _-> raise InvalidTargetArchModeException
-  let instrLen = nextPos - pos |> uint32
-  try
-    let opcode, cond, qualifier, SIMDTyp, operands =
-      match mode with
-      | ArchOperationMode.ARMMode ->
-        if isARMv7 arch then Parserv7.parseV7ARM bin
-        else Parserv8.parseV8A32ARM bin // XXX
-      | ArchOperationMode.ThumbMode ->
-        if isARMv7 arch then getThumbParser instrLen itState bin
-        else raise UnallocatedException
-      | _ -> raise InvalidTargetArchModeException
-    newInsInfo addr cond opcode qualifier SIMDTyp operands instrLen mode
-  with _ ->
-    newInsInfo addr None Op.InvalidOP None None NoOperand instrLen mode
+  let len = nextPos - pos |> uint32
+  let opcode, cond, itState, wback, qualifier, simdt, oprs, cflg =
+    match ctxt.ArchOperationMode with
+    | ArchOperationMode.ARMMode ->
+      if isARMv7 arch then Parserv7.parseV7ARM bin
+      else Parserv8.parseV8A32ARM bin // XXX
+    | ArchOperationMode.ThumbMode ->
+      if isARMv7 arch then getThumbParser ctxt bin len
+      else raise UnallocatedException
+    | _ -> raise InvalidTargetArchModeException
+  newInsInfo addr cond opcode itState wback qualifier simdt oprs len mode cflg
 
 // vim: set tw=80 sts=2 sw=2:

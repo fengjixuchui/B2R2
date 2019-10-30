@@ -8,13 +8,26 @@
 
   <ItemGroup>
     <Compile Include="Symbol.fs" />
-    <Compile Include="LowUIR.Types.fs" />
+    <Compile Include="Types.fs" />
+    <Compile Include="UnOpType.fs" />
+    <Compile Include="BinOpType.fs" />
+    <Compile Include="RelOpType.fs" />
+    <Compile Include="CastKind.fs" />
+    <Compile Include="SideEffect.fs" />
     <Compile Include="LowUIR.fs" />
+    <Compile Include="LowUIR.Pp.fs" />
     <Compile Include="LowUIR.AST.fsi" />
     <Compile Include="LowUIR.AST.fs" />
-    <Compile Include="LowUIR.Eval.fs" />
+    <Compile Include="RegParseHelper.fs" />
+    <Compile Include="SSA.fs" />
+    <Compile Include="SSA.Pp.fs" />
+    <Compile Include="SSA.AST.fs" />
     <Compile Include="Utils.fs" />
     <Compile Include="PrettyPrint.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="FParsec" Version="1.0.3" />
   </ItemGroup>
 
   <ItemGroup>

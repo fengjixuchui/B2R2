@@ -48,13 +48,17 @@ let initHelpers isa =
     MIPS.MIPSParser (isa.WordSize, isa.Arch) :> Parser
   | _ -> Utils.futureFeature ()
 
-let inline newFileInfo bytes (baseAddr: Addr) path format =
-  match format with
-  | FileFormat.ELFBinary -> new ELFFileInfo (bytes, path) :> FileInfo
-  | FileFormat.PEBinary -> new PEFileInfo (bytes, path) :> FileInfo
-  | FileFormat.MachBinary -> new MachFileInfo (bytes, path) :> FileInfo
-  | FileFormat.RawBinary -> new RawFileInfo (bytes, baseAddr) :> FileInfo
-  | _ -> invalidArg "FileFormat" "Unknown file format."
+let newFileInfo bytes (baseAddr: Addr) path isa autoDetect =
+  if autoDetect then
+    if System.IO.File.Exists path
+    then FormatDetector.detect path
+    else FormatDetector.detectBuffer bytes
+    |> function
+      | FileFormat.ELFBinary -> new ELFFileInfo (bytes, path) :> FileInfo
+      | FileFormat.PEBinary -> new PEFileInfo (bytes, path) :> FileInfo
+      | FileFormat.MachBinary -> new MachFileInfo (bytes, path, isa) :> FileInfo
+      | _ -> new RawFileInfo (bytes, baseAddr, isa) :> FileInfo
+  else new RawFileInfo (bytes, baseAddr, isa) :> FileInfo
 
 let detectThumb entryPoint (isa: ISA) =
   match isa.Arch with
@@ -74,9 +78,26 @@ let inline lift translator addr bbl =
 
 let inline disasm showAddr resolveSymbol fileInfo addr bbl =
   let disasmFolder (sb: StringBuilder, nextAddr) (ins: Instruction) =
-    // let s = BinHandler.DisasmInstr handle showAddr ins
     let s = ins.Disasm (showAddr, resolveSymbol, fileInfo)
-    let s = if sb.Length = 0 then s else "\n" + s
+    let s = if sb.Length = 0 then s else System.Environment.NewLine + s
     sb.Append(s), nextAddr + uint64 ins.Length
   let sb, addr = List.fold disasmFolder (StringBuilder (), addr) bbl
   sb.ToString (), addr
+
+/// Classify ranges to be either in-file or not-in-file. The second parameter
+/// (notinfiles) is a sequence of (exclusive) ranges within the myrange, which
+/// represent the not-in-file ranges. This function will simply divide the
+/// myrange into subranges where each subrange is labeled with either true or
+/// false, where true means in-file, and false means not-in-file.
+let classifyRanges myrange notinfiles =
+  notinfiles
+  |> Seq.fold (fun (infiles, saddr) r ->
+       let l = AddrRange.GetMin r
+       let h = AddrRange.GetMax r
+       if saddr = l then (r, false) :: infiles, h
+       else (r, false) :: ((AddrRange (saddr, l), true) :: infiles), h
+     ) ([], AddrRange.GetMin myrange)
+  |> (fun (infiles, saddr) ->
+       if saddr = myrange.Max then infiles
+       else ((AddrRange (saddr, myrange.Max), true) :: infiles))
+  |> List.rev

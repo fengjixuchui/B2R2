@@ -81,16 +81,15 @@ module PE =
     [<TestMethod>]
     member __.``[BinFile] PE File Parse Test (X86)`` () =
       let fi = parseFile x86FileName x86PDBFileName
-      Assert.AreEqual (fi.EntryPoint, 0x0040140cUL)
-      Assert.AreEqual (fi.FileType, FileType.ExecutableFile)
-      Assert.AreEqual (fi.IsStripped, false)
-      Assert.AreEqual (fi.NXEnabled, true)
-      Assert.AreEqual (fi.GetSections () |> Seq.length, 5)
-      Assert.AreEqual (fi.GetStaticSymbols () |> Seq.length, 102)
-      Assert.AreEqual (fi.GetDynamicSymbols () |> Seq.length, 41)
-      // Assert.AreEqual (fi.IndirectSymNum, 0)
-      Assert.AreEqual (fi.TextStartAddr, 0x00401000UL)
-      Assert.AreEqual (fi.WordSize, WordSize.Bit32)
+      Assert.AreEqual (0x0040140cUL, fi.EntryPoint)
+      Assert.AreEqual (FileType.ExecutableFile, fi.FileType)
+      Assert.AreEqual (false, fi.IsStripped)
+      Assert.AreEqual (true, fi.IsNXEnabled)
+      Assert.AreEqual (5, fi.GetSections () |> Seq.length)
+      Assert.AreEqual (239, fi.GetStaticSymbols () |> Seq.length)
+      Assert.AreEqual (41, fi.GetDynamicSymbols () |> Seq.length)
+      Assert.AreEqual (0x00401000UL, fi.TextStartAddr)
+      Assert.AreEqual (WordSize.Bit32, fi.WordSize)
       checkSymbol fi 0x00401090UL "_add"
       checkSymbol fi 0x004010d0UL "_mul"
       checkSymbol fi 0x004010e0UL "_main"
@@ -98,79 +97,79 @@ module PE =
     [<TestMethod>]
     member __.``[BinFile] PE File Parse Test (X64)`` () =
       let fi = parseFile x64FileName x64PDBFileName
-      Assert.AreEqual (fi.EntryPoint, 0x1400014b4UL)
-      Assert.AreEqual (fi.FileType, FileType.ExecutableFile)
-      Assert.AreEqual (fi.IsStripped, false)
-      Assert.AreEqual (fi.NXEnabled, true)
-      Assert.AreEqual (fi.GetSections () |> Seq.length, 6)
-      Assert.AreEqual (fi.GetStaticSymbols () |> Seq.length, 101)
-      Assert.AreEqual (fi.GetDynamicSymbols () |> Seq.length, 43)
-      // Assert.AreEqual (fi.IndirectSymNum, 0)
-      Assert.AreEqual (fi.TextStartAddr, 0x140001000UL)
-      Assert.AreEqual (fi.WordSize, WordSize.Bit64)
+      Assert.AreEqual (0x1400014b4UL, fi.EntryPoint)
+      Assert.AreEqual (FileType.ExecutableFile, fi.FileType)
+      Assert.AreEqual (false, fi.IsStripped)
+      Assert.AreEqual (true, fi.IsNXEnabled)
+      Assert.AreEqual (6, fi.GetSections () |> Seq.length)
+      Assert.AreEqual (240, fi.GetStaticSymbols () |> Seq.length)
+      Assert.AreEqual (43, fi.GetDynamicSymbols () |> Seq.length)
+      Assert.AreEqual (0x140001000UL, fi.TextStartAddr)
+      Assert.AreEqual (WordSize.Bit64, fi.WordSize)
       checkSymbol fi 0x1400010e0UL "add"
       checkSymbol fi 0x140001110UL "mul"
       checkSymbol fi 0x140001130UL "main"
 
 module Mach =
-  let parseFile fileName =
+  let parseFile fileName arch =
     let zip = fileName + ".zip"
     let bytes = ZIPReader.readFileFromZipFile FileFormat.MachBinary zip fileName
-    new MachFileInfo (bytes, fileName)
+    let isa = ISA.Init arch Endian.Little
+    new MachFileInfo (bytes, fileName, isa)
 
   let checkSymbol (fileInfo : MachFileInfo) addr symName =
     let found, n = fileInfo.TryFindFunctionSymbolName addr
     Assert.IsTrue (found)
-    Assert.AreEqual(n, symName)
+    Assert.AreEqual(symName, n)
 
   [<TestClass>]
   type TestClass () =
 
     [<TestMethod>]
     member __.``[BinFile] Mach File Parse Test (X86_Stripped)`` () =
-      let fi = parseFile "mach_x86_rm_stripped"
-      Assert.AreEqual (fi.EntryPoint, 0x00002050UL)
-      Assert.AreEqual (fi.FileType, FileType.ExecutableFile)
-      Assert.AreEqual (fi.IsStripped, true)
-      Assert.AreEqual (fi.NXEnabled, true)
-      Assert.AreEqual (fi.GetSections () |> Seq.length, 11)
-      Assert.AreEqual (fi.GetStaticSymbols () |> Seq.length, 1)
-      Assert.AreEqual (fi.GetDynamicSymbols () |> Seq.length, 49)
-      Assert.AreEqual (fi.GetLinkageTableEntries () |> Seq.length, 45)
-      Assert.AreEqual (fi.TextStartAddr, 0x00002050UL)
-      Assert.AreEqual (fi.WordSize, WordSize.Bit32)
+      let fi = parseFile "mach_x86_rm_stripped" Architecture.IntelX86
+      Assert.AreEqual (0x00002050UL, fi.EntryPoint)
+      Assert.AreEqual (FileType.ExecutableFile, fi.FileType)
+      Assert.AreEqual (true, fi.IsStripped)
+      Assert.AreEqual (true, fi.IsNXEnabled)
+      Assert.AreEqual (9, fi.GetSections () |> Seq.length)
+      Assert.AreEqual (0, fi.GetStaticSymbols () |> Seq.length)
+      Assert.AreEqual (50, fi.GetDynamicSymbols () |> Seq.length)
+      Assert.AreEqual (45, fi.GetLinkageTableEntries () |> Seq.length)
+      Assert.AreEqual (0x00002050UL, fi.TextStartAddr)
+      Assert.AreEqual (WordSize.Bit32, fi.WordSize)
       checkSymbol fi 0x00003b28UL "___error"
       checkSymbol fi 0x00003b70UL "_fflush"
 
     [<TestMethod>]
     member __.``[BinFile] Mach File Parse Test (X64)`` () =
-      let fi = parseFile "mach_x64_wc"
-      Assert.AreEqual (fi.EntryPoint, 0x100000E90UL)
-      Assert.AreEqual (fi.FileType, FileType.ExecutableFile)
-      Assert.AreEqual (fi.IsStripped, false)
-      Assert.AreEqual (fi.NXEnabled, false)
-      Assert.AreEqual (fi.GetSections () |> Seq.length, 15)
-      Assert.AreEqual (fi.GetStaticSymbols () |> Seq.length, 621)
-      Assert.AreEqual (fi.GetDynamicSymbols () |> Seq.length, 77)
-      Assert.AreEqual (fi.GetLinkageTableEntries () |> Seq.length, 70)
-      Assert.AreEqual (fi.TextStartAddr, 0x100000D30UL)
-      Assert.AreEqual (fi.WordSize, WordSize.Bit64)
+      let fi = parseFile "mach_x64_wc" Architecture.IntelX64
+      Assert.AreEqual (0x100000E90UL, fi.EntryPoint)
+      Assert.AreEqual (FileType.ExecutableFile, fi.FileType)
+      Assert.AreEqual (false, fi.IsStripped)
+      Assert.AreEqual (true, fi.IsNXEnabled)
+      Assert.AreEqual (13, fi.GetSections () |> Seq.length)
+      Assert.AreEqual (885, fi.GetStaticSymbols () |> Seq.length)
+      Assert.AreEqual (78, fi.GetDynamicSymbols () |> Seq.length)
+      Assert.AreEqual (72, fi.GetLinkageTableEntries () |> Seq.length)
+      Assert.AreEqual (0x100000D30UL, fi.TextStartAddr)
+      Assert.AreEqual (WordSize.Bit64, fi.WordSize)
       checkSymbol fi 0x100000D30UL "_usage"
       checkSymbol fi 0x100005F90UL "_error"
 
     [<TestMethod>]
     member __.``[BinFile] Mach File Parse Test (X64_Stripped)`` () =
-      let fi = parseFile "mach_x64_wc_stripped"
-      Assert.AreEqual (fi.EntryPoint, 0x100000E90UL)
-      Assert.AreEqual (fi.FileType, FileType.ExecutableFile)
-      Assert.AreEqual (fi.IsStripped, true)
-      Assert.AreEqual (fi.NXEnabled, false)
-      Assert.AreEqual (fi.GetSections () |> Seq.length, 15)
-      Assert.AreEqual (fi.GetStaticSymbols () |> Seq.length, 1)
-      Assert.AreEqual (fi.GetDynamicSymbols () |> Seq.length, 77)
-      Assert.AreEqual (fi.GetLinkageTableEntries () |> Seq.length, 70)
-      Assert.AreEqual (fi.TextStartAddr, 0x100000D30UL)
-      Assert.AreEqual (fi.WordSize, WordSize.Bit64)
+      let fi = parseFile "mach_x64_wc_stripped" Architecture.IntelX64
+      Assert.AreEqual (0x100000E90UL, fi.EntryPoint)
+      Assert.AreEqual (FileType.ExecutableFile, fi.FileType)
+      Assert.AreEqual (true, fi.IsStripped)
+      Assert.AreEqual (true, fi.IsNXEnabled)
+      Assert.AreEqual (13, fi.GetSections () |> Seq.length)
+      Assert.AreEqual (0, fi.GetStaticSymbols () |> Seq.length)
+      Assert.AreEqual (78, fi.GetDynamicSymbols () |> Seq.length)
+      Assert.AreEqual (72, fi.GetLinkageTableEntries () |> Seq.length)
+      Assert.AreEqual (0x100000D30UL, fi.TextStartAddr)
+      Assert.AreEqual (WordSize.Bit64, fi.WordSize)
       checkSymbol fi 0x10000B076UL "___error"
       checkSymbol fi 0x10000B0D0UL "_fflush"
 
@@ -209,7 +208,7 @@ module ELF =
       Assert.AreEqual (fi.EntryPoint, 0x8049CD0UL)
       Assert.AreEqual (fi.FileType, FileType.ExecutableFile)
       Assert.AreEqual (fi.IsStripped, false)
-      Assert.AreEqual (fi.NXEnabled, false)
+      Assert.AreEqual (fi.IsNXEnabled, true)
       Assert.AreEqual (fi.GetSections () |> Seq.length, 31)
       Assert.AreEqual (fi.GetStaticSymbols () |> Seq.length, 793)
       Assert.AreEqual (fi.GetDynamicSymbols () |> Seq.length, 131)
@@ -225,7 +224,7 @@ module ELF =
       Assert.AreEqual (fi.EntryPoint, 0x8049CD0UL)
       Assert.AreEqual (fi.FileType, FileType.ExecutableFile)
       Assert.AreEqual (fi.IsStripped, true)
-      Assert.AreEqual (fi.NXEnabled, false)
+      Assert.AreEqual (fi.IsNXEnabled, true)
       Assert.AreEqual (fi.GetSections () |> Seq.length, 29)
       Assert.AreEqual (fi.GetStaticSymbols () |> Seq.length, 0)
       Assert.AreEqual (fi.GetDynamicSymbols () |> Seq.length, 131)
@@ -241,7 +240,7 @@ module ELF =
       Assert.AreEqual (fi.EntryPoint, 0x404050UL)
       Assert.AreEqual (fi.FileType, FileType.ExecutableFile)
       Assert.AreEqual (fi.IsStripped, false)
-      Assert.AreEqual (fi.NXEnabled, false)
+      Assert.AreEqual (fi.IsNXEnabled, true)
       Assert.AreEqual (fi.GetSections () |> Seq.length, 38)
       Assert.AreEqual (fi.GetStaticSymbols () |> Seq.length, 635)
       Assert.AreEqual (fi.GetDynamicSymbols () |> Seq.length, 126)
@@ -257,7 +256,7 @@ module ELF =
       Assert.AreEqual (fi.EntryPoint, 0x404050UL)
       Assert.AreEqual (fi.FileType, FileType.ExecutableFile)
       Assert.AreEqual (fi.IsStripped, true)
-      Assert.AreEqual (fi.NXEnabled, false)
+      Assert.AreEqual (fi.IsNXEnabled, true)
       Assert.AreEqual (fi.GetSections () |> Seq.length, 29)
       Assert.AreEqual (fi.GetStaticSymbols () |> Seq.length, 0)
       Assert.AreEqual (fi.GetDynamicSymbols () |> Seq.length, 126)
@@ -273,7 +272,7 @@ module ELF =
       Assert.AreEqual (fi.EntryPoint, 0x00013d0cUL)
       Assert.AreEqual (fi.FileType, FileType.ExecutableFile)
       Assert.AreEqual (fi.IsStripped, false)
-      Assert.AreEqual (fi.NXEnabled, false)
+      Assert.AreEqual (fi.IsNXEnabled, true)
       Assert.AreEqual (fi.GetSections () |> Seq.length, 38)
       Assert.AreEqual (fi.GetStaticSymbols () |> Seq.length, 1299)
       Assert.AreEqual (fi.GetDynamicSymbols () |> Seq.length, 136)
@@ -289,7 +288,7 @@ module ELF =
       Assert.AreEqual (fi.EntryPoint, 0x00013d0cUL)
       Assert.AreEqual (fi.FileType, FileType.ExecutableFile)
       Assert.AreEqual (fi.IsStripped, true)
-      Assert.AreEqual (fi.NXEnabled, false)
+      Assert.AreEqual (fi.IsNXEnabled, true)
       Assert.AreEqual (fi.GetSections () |> Seq.length, 28)
       Assert.AreEqual (fi.GetStaticSymbols () |> Seq.length, 0)
       Assert.AreEqual (fi.GetDynamicSymbols () |> Seq.length, 136)
@@ -305,7 +304,7 @@ module ELF =
       Assert.AreEqual (fi.EntryPoint, 0x00013605UL)
       Assert.AreEqual (fi.FileType, FileType.ExecutableFile)
       Assert.AreEqual (fi.IsStripped, false)
-      Assert.AreEqual (fi.NXEnabled, false)
+      Assert.AreEqual (fi.IsNXEnabled, true)
       Assert.AreEqual (fi.GetSections () |> Seq.length, 38)
       Assert.AreEqual (fi.GetStaticSymbols () |> Seq.length, 1088)
       Assert.AreEqual (fi.GetDynamicSymbols () |> Seq.length, 136)
@@ -321,7 +320,7 @@ module ELF =
       Assert.AreEqual (fi.EntryPoint, 0x00013605UL)
       Assert.AreEqual (fi.FileType, FileType.ExecutableFile)
       Assert.AreEqual (fi.IsStripped, true)
-      Assert.AreEqual (fi.NXEnabled, false)
+      Assert.AreEqual (fi.IsNXEnabled, true)
       Assert.AreEqual (fi.GetSections () |> Seq.length, 28)
       Assert.AreEqual (fi.GetStaticSymbols () |> Seq.length, 0)
       Assert.AreEqual (fi.GetDynamicSymbols () |> Seq.length, 136)
@@ -337,7 +336,7 @@ module ELF =
       Assert.AreEqual (fi.EntryPoint, 0x00404788UL)
       Assert.AreEqual (fi.FileType, FileType.ExecutableFile)
       Assert.AreEqual (fi.IsStripped, false)
-      Assert.AreEqual (fi.NXEnabled, false)
+      Assert.AreEqual (fi.IsNXEnabled, true)
       Assert.AreEqual (fi.GetSections () |> Seq.length, 37)
       Assert.AreEqual (fi.GetStaticSymbols () |> Seq.length, 935)
       Assert.AreEqual (fi.GetDynamicSymbols () |> Seq.length, 136)
@@ -353,7 +352,7 @@ module ELF =
       Assert.AreEqual (fi.EntryPoint, 0x00404788UL)
       Assert.AreEqual (fi.FileType, FileType.ExecutableFile)
       Assert.AreEqual (fi.IsStripped, true)
-      Assert.AreEqual (fi.NXEnabled, false)
+      Assert.AreEqual (fi.IsNXEnabled, true)
       Assert.AreEqual (fi.GetSections () |> Seq.length, 27)
       Assert.AreEqual (fi.GetStaticSymbols () |> Seq.length, 0)
       Assert.AreEqual (fi.GetDynamicSymbols () |> Seq.length, 136)
@@ -369,7 +368,7 @@ module ELF =
       Assert.AreEqual (fi.EntryPoint, 0x00004c80UL)
       Assert.AreEqual (fi.FileType, FileType.LibFile)
       Assert.AreEqual (fi.IsStripped, true)
-      Assert.AreEqual (fi.NXEnabled, false)
+      Assert.AreEqual (fi.IsNXEnabled, false)
       Assert.AreEqual (fi.GetSections () |> Seq.length, 34)
       Assert.AreEqual (fi.GetStaticSymbols () |> Seq.length, 0)
       Assert.AreEqual (fi.GetDynamicSymbols () |> Seq.length, 232)
@@ -385,7 +384,7 @@ module ELF =
       Assert.AreEqual (fi.EntryPoint, 0x00004c80UL)
       Assert.AreEqual (fi.FileType, FileType.LibFile)
       Assert.AreEqual (fi.IsStripped, true)
-      Assert.AreEqual (fi.NXEnabled, false)
+      Assert.AreEqual (fi.IsNXEnabled, false)
       Assert.AreEqual (fi.GetSections () |> Seq.length, 34)
       Assert.AreEqual (fi.GetStaticSymbols () |> Seq.length, 0)
       Assert.AreEqual (fi.GetDynamicSymbols () |> Seq.length, 232)
@@ -401,7 +400,7 @@ module ELF =
       Assert.AreEqual (fi.EntryPoint, 0x0000ade0UL)
       Assert.AreEqual (fi.FileType, FileType.LibFile)
       Assert.AreEqual (fi.IsStripped, true)
-      Assert.AreEqual (fi.NXEnabled, false)
+      Assert.AreEqual (fi.IsNXEnabled, false)
       Assert.AreEqual (fi.GetSections () |> Seq.length, 32)
       Assert.AreEqual (fi.GetStaticSymbols () |> Seq.length, 0)
       Assert.AreEqual (fi.GetDynamicSymbols () |> Seq.length, 232)

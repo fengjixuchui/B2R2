@@ -32,10 +32,14 @@ open B2R2
 ///   This class represents a raw binary file (containing only binary code and
 ///   data without file format)
 /// </summary>
-type RawFileInfo (bytes: byte [], baseAddr) =
+type RawFileInfo (bytes: byte [], baseAddr, isa) =
   inherit FileInfo ()
 
   override __.FileFormat = FileFormat.RawBinary
+
+  override __.BinReader = BinReader.Init (bytes, isa.Endian)
+
+  override __.ISA = isa
 
   override __.FilePath = ""
 
@@ -45,21 +49,21 @@ type RawFileInfo (bytes: byte [], baseAddr) =
 
   override __.FileType = FileType.UnknownFile
 
-  override __.WordSize = WordSize.Bit32
+  override __.WordSize = isa.WordSize
 
-  override __.NXEnabled = false
+  override __.IsNXEnabled = false
+
+  override __.IsRelocatable = false
 
   override __.TextStartAddr = baseAddr
 
   override __.TranslateAddress addr = System.Convert.ToInt32 (addr - baseAddr)
 
-  override __.FindSymbolChunkStartAddress _addr = 0UL
-
   override __.GetSymbols () = Seq.empty
 
   override __.GetStaticSymbols () = Seq.empty
 
-  override __.GetDynamicSymbols () = Seq.empty
+  override __.GetDynamicSymbols (?defined) = Seq.empty
 
   override __.GetSections () =
     Seq.singleton {
@@ -88,7 +92,29 @@ type RawFileInfo (bytes: byte [], baseAddr) =
 
   override __.GetLinkageTableEntries () = Seq.empty
 
+  override __.GetRelocationSymbols () = Seq.empty
+
   override __.IsValidAddr (addr) =
     addr >= baseAddr && addr < (baseAddr + uint64 bytes.LongLength)
+
+  override __.IsValidRange (range) =
+    __.IsValidAddr range.Min && __.IsValidAddr (range.Max - 1UL)
+
+  override __.IsInFileAddr (addr) = __.IsValidAddr (addr)
+
+  override __.IsInFileRange range = __.IsValidRange range
+
+  override __.GetNotInFileIntervals range =
+    let lastAddr = baseAddr + uint64 bytes.LongLength
+    if range.Max <= baseAddr then Seq.singleton range
+    elif range.Max <= lastAddr && range.Min < baseAddr then
+      Seq.singleton (AddrRange (range.Min, baseAddr))
+    elif range.Max > lastAddr && range.Min < baseAddr then
+      [ AddrRange (range.Min, baseAddr); AddrRange (lastAddr, range.Max) ]
+      |> List.toSeq
+    elif range.Max > lastAddr && range.Min <= lastAddr then
+      Seq.singleton (AddrRange (lastAddr, range.Max))
+    elif range.Max > lastAddr && range.Min > lastAddr then Seq.singleton range
+    else Seq.empty
 
 // vim: set tw=80 sts=2 sw=2:

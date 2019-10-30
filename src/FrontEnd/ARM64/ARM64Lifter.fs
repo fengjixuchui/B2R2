@@ -27,6 +27,7 @@
 module internal B2R2.FrontEnd.ARM64.Lifter
 
 open B2R2
+open B2R2.BinIR
 open B2R2.BinIR.LowUIR
 open B2R2.BinIR.LowUIR.AST
 open B2R2.FrontEnd
@@ -149,7 +150,7 @@ let transMem ins ctxt addr = function
   | LiteralMode offset -> transBaseMode ins ctxt addr offset
 
 let transOprToExpr ins ctxt addr = function
-  | Register reg -> getRegVar ctxt reg
+  | OprRegister reg -> getRegVar ctxt reg
   | Memory mem -> transMem ins ctxt addr mem
   | SIMDOpr simd -> transSIMD ctxt simd
   | Immediate imm -> num <| BitVector.ofInt64 imm ins.OprSize
@@ -192,17 +193,17 @@ let transBarrelShiftToExpr ins ctxt src shift =
               | SRTypeLSR -> imm >>> int32 amt
               | _ -> failwith "Not implement"
     numI64 imm ins.OprSize
-  | Register reg, Shift (typ, amt) ->
+  | OprRegister reg, Shift (typ, amt) ->
     let reg = getRegVar ctxt reg
     let amount = transShiftAmout ctxt ins.OprSize amt
     shiftReg reg amount ins.OprSize typ
-  | Register reg, ExtReg (Some (ShiftOffset (typ, amt))) ->
+  | OprRegister reg, ExtReg (Some (ShiftOffset (typ, amt))) ->
     let reg = getRegVar ctxt reg
     let amount = transShiftAmout ctxt ins.OprSize amt
     shiftReg reg amount ins.OprSize typ
-  | Register reg, ExtReg (Some (ExtRegOffset (typ, shf))) ->
+  | OprRegister reg, ExtReg (Some (ExtRegOffset (typ, shf))) ->
     extendReg ctxt reg typ shf ins.OprSize
-  | Register reg, ExtReg None -> getRegVar ctxt reg
+  | OprRegister reg, ExtReg None -> getRegVar ctxt reg
   | _ -> raise <| NotImplementedIRException "transBarrelShiftToExpr"
 
 let transFourOprsWithBarrelShift ins ctxt addr =
@@ -674,8 +675,8 @@ type BranchType =
 // Set program counter to a new address, which may include a tag in the top
 // eight bits, with a branch reason hint for possible use by hardware fetching
 // the next instruction.
-let branchTo ins ctxt target brType (builder: StmtBuilder) =
-  builder <! (InterJmp (getPC ctxt, target)) // FIXME: BranchAddr function
+let branchTo ins ctxt target brType i (builder: StmtBuilder) =
+  builder <! (InterJmp (getPC ctxt, target, i)) // FIXME: BranchAddr function
 
 // shared/functions/system/ConditionHolds
 // ConditionHolds()
@@ -856,7 +857,7 @@ let b ins ctxt addr =
   let label = transOneOpr ins ctxt addr
   let pc = getPC ctxt
   startMark ins addr builder
-  builder <! (InterJmp (pc, pc .+ label))
+  builder <! (InterJmp (pc, pc .+ label, InterJmpInfo.Base))
   endMark ins addr builder
 
 let bCond ins ctxt addr cond =
@@ -894,7 +895,8 @@ let bl ins ctxt addr =
   let pc = getPC ctxt
   startMark ins addr builder
   builder <! (getRegVar ctxt R.X30 := pc .+ numI64 4L ins.OprSize)
-  builder <! (InterJmp (pc, pc .+ label)) // FIXME: BranchTo (BType_CALL)
+  // FIXME: BranchTo (BType_CALL)
+  builder <! (InterJmp (pc, pc .+ label, InterJmpInfo.IsCall))
   endMark ins addr builder
 
 let blr ins ctxt addr =
@@ -903,14 +905,16 @@ let blr ins ctxt addr =
   let pc = getPC ctxt
   startMark ins addr builder
   builder <! (getRegVar ctxt R.X30 := pc .+ numI64 4L ins.OprSize)
-  builder <! (InterJmp (pc, src)) // FIXME: BranchTo (BranchType_CALL)
+  // FIXME: BranchTo (BranchType_CALL)
+  builder <! (InterJmp (pc, src, InterJmpInfo.IsCall))
   endMark ins addr builder
 
 let br ins ctxt addr =
   let builder = new StmtBuilder (4)
   let dst = transOneOpr ins ctxt addr
   startMark ins addr builder
-  builder <! (InterJmp (getPC ctxt, dst)) // FIXME: BranchTo (BType_JMP)
+  // FIXME: BranchTo (BType_JMP)
+  builder <! (InterJmp (getPC ctxt, dst, InterJmpInfo.Base))
   endMark ins addr builder
 
 let cbnz ins ctxt addr =
@@ -1194,7 +1198,7 @@ let ret ins ctxt addr =
   let target = tmpVar 64<rt>
   startMark ins addr builder
   builder <! (target := src)
-  branchTo ins ctxt target BrTypeRET builder
+  branchTo ins ctxt target BrTypeRET InterJmpInfo.IsRet builder
   endMark ins addr builder
 
 let sbc ins ctxt addr =
@@ -1410,9 +1414,9 @@ let ubfm ins ctxt addr =
 let distLogcalShift ins ctxt addr =
   match ins.Operands with
   | ThreeOperands (_, _, Immediate _) -> ubfm ins ctxt addr
-  | ThreeOperands (_, _, Register _) when ins.Opcode = Opcode.LSL ->
+  | ThreeOperands (_, _, OprRegister _) when ins.Opcode = Opcode.LSL ->
     lslv ins ctxt addr
-  | ThreeOperands (_, _, Register _) when ins.Opcode = Opcode.LSR ->
+  | ThreeOperands (_, _, OprRegister _) when ins.Opcode = Opcode.LSR ->
     lsrv ins ctxt addr
   | _ -> raise InvalidOperandException
 
@@ -1509,7 +1513,11 @@ let translate ins ctxt =
   | Opcode.UDIV -> udiv ins ctxt addr
   | Opcode.UMULL -> umaddl ins ctxt addr
   | Opcode.UMULH -> umulh ins ctxt addr
-  | o -> raise <| NotImplementedIRException (Disasm.opCodeToString o)
+  | o ->
+#if DEBUG
+         eprintfn "%A" o
+#endif
+         raise <| NotImplementedIRException (Disasm.opCodeToString o)
   |> fun builder -> builder.ToStmts ()
 
 // vim: set tw=80 sts=2 sw=2:

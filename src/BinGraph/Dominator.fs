@@ -2,6 +2,7 @@
   B2R2 - the Next-Generation Reversing Platform
 
   Author: Sang Kil Cha <sangkilc@kaist.ac.kr>
+          Soomin Kim <soomink@kaist.ac.kr>
 
   Copyright (c) SoftSec Lab. @ KAIST, since 2016
 
@@ -29,36 +30,45 @@ module B2R2.BinGraph.Dominator
 open B2R2.Utils
 open System.Collections.Generic
 
-type DominatorContext<'V when 'V :> VertexData> =
-  {
-    /// Vertex ID -> DFNum
-    DFNumMap      : Dictionary<VertexID, int>
-    /// DFNum -> Vertex
-    Vertex        : Vertex<'V> []
-    /// DFNum -> DFNum in the ancestor chain s.t. DFNum of its Semi is minimal.
-    Label         : int []
-    /// DFNum -> DFNum of the parent node (zero if not exists).
-    Parent        : int []
-    /// DFNum -> DFNum of the child node (zero if not exists).
-    Child         : int []
-    /// DFNum -> DFNum of an ancestor.
-    Ancestor      : int []
-    /// DFNum -> DFNum of a semidominator.
-    Semi          : int []
-    /// DFNum -> set of DFNums (vertices that share the same sdom).
-    Bucket        : Set<int> []
-    /// DFNum -> Size
-    Size          : int []
-    /// DFNum -> DFNum of an immediate dominator.
-    IDom          : int []
-    /// Length of the arrays.
-    MaxLength     : int
-  }
+type DomInfo<'V when 'V :> VertexData> = {
+  /// Vertex ID -> DFNum
+  DFNumMap      : Dictionary<VertexID, int>
+  /// DFNum -> Vertex
+  Vertex        : Vertex<'V> []
+  /// DFNum -> DFNum in the ancestor chain s.t. DFNum of its Semi is minimal.
+  Label         : int []
+  /// DFNum -> DFNum of the parent node (zero if not exists).
+  Parent        : int []
+  /// DFNum -> DFNum of the child node (zero if not exists).
+  Child         : int []
+  /// DFNum -> DFNum of an ancestor.
+  Ancestor      : int []
+  /// DFNum -> DFNum of a semidominator.
+  Semi          : int []
+  /// DFNum -> set of DFNums (vertices that share the same sdom).
+  Bucket        : Set<int> []
+  /// DFNum -> Size
+  Size          : int []
+  /// DFNum -> DFNum of an immediate dominator.
+  IDom          : int []
+  /// Length of the arrays.
+  MaxLength     : int
+}
 
-let initContext (g: DiGraph<_, _>) =
+/// Storing DomInfo of a graph. We use this to repeatedly compute doms/pdoms of
+/// the same graph.
+type DominatorContext<'V, 'E when 'V :> VertexData> = {
+  ForwardGraph: DiGraph<'V, 'E>
+  ForwardRoot: Vertex<'V>
+  ForwardDomInfo: DomInfo<'V>
+  BackwardGraph: DiGraph<'V, 'E>
+  BackwardRoot: Vertex<'V>
+  BackwardDomInfo: DomInfo<'V>
+}
+
+let initDomInfo (g: DiGraph<_, _>) =
   let len = g.Size () + 2 (* To reserve a room for entry (dummy) node. *)
-  {
-    DFNumMap = Dictionary<VertexID, int>()
+  { DFNumMap = Dictionary<VertexID, int>()
     Vertex = Array.zeroCreate len
     Label = Array.create len 0
     Parent = Array.create len 0
@@ -68,88 +78,86 @@ let initContext (g: DiGraph<_, _>) =
     Bucket = Array.create len Set.empty
     Size = Array.create len 1
     IDom = Array.create len 0
-    MaxLength = len
-  }
+    MaxLength = len }
 
-let inline dfnum ctxt (v: Vertex<_>) =
-  ctxt.DFNumMap.[v.GetID ()]
+let inline dfnum info (v: Vertex<_>) =
+  info.DFNumMap.[v.GetID ()]
 
-let rec assignDFNum ctxt n = function
+let rec assignDFNum info n = function
   | (p, v: Vertex<_>) :: stack
-      when not <| ctxt.DFNumMap.ContainsKey (v.GetID ()) ->
-    ctxt.DFNumMap.Add (v.GetID (), n)
-    ctxt.Semi.[n] <- n
-    ctxt.Vertex.[n] <- v
-    ctxt.Label.[n] <- n
-    ctxt.Parent.[n] <- p
+      when not <| info.DFNumMap.ContainsKey (v.GetID ()) ->
+    info.DFNumMap.Add (v.GetID (), n)
+    info.Semi.[n] <- n
+    info.Vertex.[n] <- v
+    info.Label.[n] <- n
+    info.Parent.[n] <- p
     List.fold (fun acc s -> (n, s) :: acc) stack v.Succs
-    |> assignDFNum ctxt (n+1)
-  | _ :: stack -> assignDFNum ctxt n stack
+    |> assignDFNum info (n+1)
+  | _ :: stack -> assignDFNum info n stack
   | [] -> n
 
-let rec compress ctxt v =
-  let a = ctxt.Ancestor.[v]
-  if ctxt.Ancestor.[a] <> 0 then
-    compress ctxt a
-    if ctxt.Semi.[ctxt.Label.[a]] < ctxt.Semi.[ctxt.Label.[v]] then
-      ctxt.Label.[v] <- ctxt.Label.[a]
+let rec compress info v =
+  let a = info.Ancestor.[v]
+  if info.Ancestor.[a] <> 0 then
+    compress info a
+    if info.Semi.[info.Label.[a]] < info.Semi.[info.Label.[v]] then
+      info.Label.[v] <- info.Label.[a]
     else ()
-    ctxt.Ancestor.[v] <- ctxt.Ancestor.[a]
+    info.Ancestor.[v] <- info.Ancestor.[a]
 
-let eval ctxt v =
-  let a = ctxt.Ancestor.[v]
-  if a = 0 then ctxt.Label.[v]
+let eval info v =
+  let a = info.Ancestor.[v]
+  if a = 0 then info.Label.[v]
   else
-    compress ctxt v
-    if ctxt.Semi.[ctxt.Label.[a]] >= ctxt.Semi.[ctxt.Label.[v]] then
-      ctxt.Label.[v]
-    else ctxt.Label.[a]
+    compress info v
+    if info.Semi.[info.Label.[a]] >= info.Semi.[info.Label.[v]] then
+      info.Label.[v]
+    else info.Label.[a]
 
 /// Compute semidominator of v.
-let rec computeSemiDom ctxt v = function
+let rec computeSemiDom info v = function
   | pred :: preds ->
-    let u = eval ctxt pred
-    if ctxt.Semi.[u] < ctxt.Semi.[v] then ctxt.Semi.[v] <- ctxt.Semi.[u]
-    computeSemiDom ctxt v preds
+    let u = eval info pred
+    if info.Semi.[u] < info.Semi.[v] then info.Semi.[v] <- info.Semi.[u]
+    computeSemiDom info v preds
   | [] -> ()
 
-let link ctxt v w =
+let link info v w =
   let mutable s = w
-  while ctxt.Semi.[ctxt.Label.[w]] < ctxt.Semi.[ctxt.Label.[ctxt.Child.[s]]] do
-    if ctxt.Size.[s] + ctxt.Size.[ctxt.Child.[ctxt.Child.[s]]]
-       >= 2 * ctxt.Size.[ctxt.Child.[s]]
-    then ctxt.Ancestor.[ctxt.Child.[s]] <- s
-         ctxt.Child.[s] <- ctxt.Child.[ctxt.Child.[s]]
-    else ctxt.Size.[ctxt.Child.[s]] <- ctxt.Size.[s]
-         ctxt.Ancestor.[s] <- ctxt.Child.[s]
-         s <- ctxt.Ancestor.[s]
+  while info.Semi.[info.Label.[w]] < info.Semi.[info.Label.[info.Child.[s]]] do
+    if info.Size.[s] + info.Size.[info.Child.[info.Child.[s]]]
+       >= 2 * info.Size.[info.Child.[s]]
+    then info.Ancestor.[info.Child.[s]] <- s
+         info.Child.[s] <- info.Child.[info.Child.[s]]
+    else info.Size.[info.Child.[s]] <- info.Size.[s]
+         info.Ancestor.[s] <- info.Child.[s]
+         s <- info.Ancestor.[s]
   done
-  ctxt.Label.[s] <- ctxt.Label.[w]
-  ctxt.Size.[v] <- ctxt.Size.[v] + ctxt.Size.[w]
-  if ctxt.Size.[v] < 2 * ctxt.Size.[w] then
+  info.Label.[s] <- info.Label.[w]
+  info.Size.[v] <- info.Size.[v] + info.Size.[w]
+  if info.Size.[v] < 2 * info.Size.[w] then
     let t = s
-    s <- ctxt.Child.[v]
-    ctxt.Child.[v] <- t
+    s <- info.Child.[v]
+    info.Child.[v] <- t
   while s <> 0 do
-    ctxt.Ancestor.[s] <- v
-    s <- ctxt.Child.[s]
+    info.Ancestor.[s] <- v
+    s <- info.Child.[s]
   done
 
-let computeDom ctxt p =
+let computeDom info p =
   Set.iter (fun v ->
-    let u = eval ctxt v
-    if ctxt.Semi.[u] < ctxt.Semi.[v] then ctxt.IDom.[v] <- u
-    else ctxt.IDom.[v] <- p) ctxt.Bucket.[p]
-  ctxt.Bucket.[p] <- Set.empty
+    let u = eval info v
+    if info.Semi.[u] < info.Semi.[v] then info.IDom.[v] <- u
+    else info.IDom.[v] <- p) info.Bucket.[p]
+  info.Bucket.[p] <- Set.empty
 
-let rec computeDomOrDelay ctxt parent =
-  if ctxt.Bucket.[parent].IsEmpty then ()
-  else computeDom ctxt parent
+let rec computeDomOrDelay info parent =
+  if info.Bucket.[parent].IsEmpty then ()
+  else computeDom info parent
 
 /// Temporarily connect entry dummy node and real entry nodes.
-let connect (g: DiGraph<_, _>) =
-  let root = g.GetRoot ()
-  if root.GetID () = 0 then root (* We already have added a dummy node. *)
+let connect (root: Vertex<_>) =
+  if root.IsDummy () then root
   else
     let dummyEntry = Vertex<_> ()
     dummyEntry.Succs <- [root]
@@ -157,78 +165,140 @@ let connect (g: DiGraph<_, _>) =
     dummyEntry
 
 /// Disconnect the dummy node and the entry nodes.
-let disconnect (g: DiGraph<_, _>) =
-  let root = g.GetRoot ()
-  root.Preds <- root.Preds |> List.filter (fun p -> p.GetID () <> root.GetID ())
+let disconnect (root: Vertex<_>) =
+  root.Preds <- root.Preds |> List.filter (fun p -> p.GetID () <> 0)
 
-let initDominator (g: DiGraph<_, _>) =
-  let ctxt = initContext g
-  let dummyEntry = connect g
-  let n = assignDFNum ctxt 1 [(0, dummyEntry)]
+let initDominator (g: DiGraph<_, _>) root =
+  let info = initDomInfo g
+  let dummyEntry = connect root
+  let n = assignDFNum info 1 [(0, dummyEntry)]
   for i = n - 1 downto 2 do
-    let v = ctxt.Vertex.[i]
-    let p = ctxt.Parent.[i]
-    List.map (dfnum ctxt) v.Preds |> computeSemiDom ctxt i
-    ctxt.Bucket.[ctxt.Semi.[i]] <- Set.add i ctxt.Bucket.[ctxt.Semi.[i]]
-    link ctxt p i (* Link the parent (p) to the forest. *)
-    computeDomOrDelay ctxt p
+    let v = info.Vertex.[i]
+    let p = info.Parent.[i]
+    List.map (dfnum info) v.Preds |> computeSemiDom info i
+    info.Bucket.[info.Semi.[i]] <- Set.add i info.Bucket.[info.Semi.[i]]
+    link info p i (* Link the parent (p) to the forest. *)
+    computeDomOrDelay info p
   done
-  disconnect g
+  disconnect root
   for i = 2 to n - 1 do
-    if ctxt.IDom.[i] <> ctxt.Semi.[i] then
-      ctxt.IDom.[i] <- ctxt.IDom.[ctxt.IDom.[i]]
+    if info.IDom.[i] <> info.Semi.[i] then
+      info.IDom.[i] <- info.IDom.[info.IDom.[i]]
     else ()
   done
-  ctxt
+  info
+
+let topologicalOrder (visited, stack, orderMap, cnt) v =
+  let rec checkStack visited (stack: Vertex<_> list) orderMap cnt =
+    match stack with
+    | [] -> stack, orderMap, cnt
+    | v :: stack ->
+      if List.exists (fun s -> Set.contains s visited |> not) v.Succs then
+        v :: stack, orderMap, cnt
+      else
+        let orderMap = Map.add v cnt orderMap
+        checkStack visited stack orderMap (cnt - 1)
+  let visited = Set.add v visited
+  let stack, orderMap, cnt = checkStack visited (v :: stack) orderMap cnt
+  visited, stack, orderMap, cnt
+
+let updateReachMap exits reachMap =
+  let rec loop reachMap = function
+    | [] -> reachMap
+    | (v: Vertex<_>) :: vs ->
+      let reachMap = Map.add (v.GetID ()) true reachMap
+      let vs =
+        List.fold (fun acc (w: Vertex<_>) ->
+          if Map.find (w.GetID ()) reachMap then acc else w :: acc) vs v.Succs
+      loop reachMap vs
+  List.filter (fun (v: Vertex<_>) -> not (Map.find (v.GetID ()) reachMap)) exits
+  |> loop reachMap
+
+let rec calculateExits (fg: DiGraph<_, _>) (bg: DiGraph<_, _>) reachMap exits =
+  if Map.forall (fun _ b -> b) reachMap then exits
+  else
+    let reachMap = updateReachMap exits reachMap
+    let exits =
+      fg.FoldVertex (fun acc (v: Vertex<_>) ->
+        if List.length v.Succs = 0 && not <| Map.find (v.GetID ()) reachMap then
+          bg.FindVertexByID (v.GetID ()) :: acc
+        else acc) exits
+    calculateExits fg bg reachMap exits
+
+let preparePostDomAnalysis (fg: DiGraph<_, _>) root (bg: DiGraph<_, _>) =
+  // Remove backedges from forward graph
+  let size = fg.Size () - 1
+  let _, _, order, _ =
+    fg.FoldVertexDFS root topologicalOrder (Set.empty, [], Map.empty, size)
+  let backEdges =
+    fg.FoldEdge (fun acc (src: Vertex<_>) (dst: Vertex<_>) edge ->
+      if src.GetID () = dst.GetID () then
+        fg.RemoveEdge src dst
+        (src, dst, edge) :: acc
+      else acc) []
+    |> fg.FoldEdge (fun acc (src: Vertex<_>) (dst: Vertex<_>) edge ->
+      if Map.find src order > Map.find dst order then
+        fg.RemoveEdge src dst
+        (src, dst, edge) :: acc
+      else acc)
+  let reachMap =
+    bg.FoldVertex (fun acc (v: Vertex<_>) ->
+      Map.add (v.GetID ()) false acc) Map.empty
+  let exits = calculateExits fg bg reachMap <| Seq.toList bg.Unreachables
+  // Restore backedges to backward graph
+  List.iter (fun (src, dst, edge) -> fg.AddEdge src dst edge) backEdges
+  let dummy = Vertex<'V> ()
+  dummy.Succs <- exits
+  List.iter (fun (v: Vertex<_>) -> v.Preds <- dummy :: v.Preds) exits
+  bg, dummy
+
+let initDominatorContext g root =
+  let forward = initDominator g root
+  let g', root' = g.Reverse () |> preparePostDomAnalysis g root
+  let backward = initDominator g' root'
+  { ForwardGraph = g
+    ForwardRoot = root
+    ForwardDomInfo = forward
+    BackwardGraph = g'
+    BackwardRoot = root'
+    BackwardDomInfo = backward }
 
 let checkVertexInGraph (g: DiGraph<'V, 'E>) (v: Vertex<'V>) =
-  let v' = g.FindVertex v
+  let v' = g.FindVertexByData v.VData
   if v === v' then ()
   else raise VertexNotFoundException
 
-let private idomAux g v =
-  let ctxt = initDominator g
-  let id = ctxt.IDom.[dfnum ctxt v]
-  if id > 1 then Some ctxt.Vertex.[id] else None
+let private idomAux info v =
+  let id = info.IDom.[dfnum info v]
+  if id > 1 then Some info.Vertex.[id] else None
 
-let idom g v =
+let idom ctxt v =
+  let g = ctxt.ForwardGraph
   checkVertexInGraph g v
-  idomAux g v
+  idomAux ctxt.ForwardDomInfo v
 
-let preparePostDomAnalysis (g: DiGraph<'V, 'E>) =
-  match g.Unreachables with
-  | [] -> (* No exit nodes found: make an arbitrary node as a root. *)
-    g.FoldVertex (fun _ v -> Some v) None |> Option.iter (fun v -> g.SetRoot v)
-  | [v] -> g.SetRoot v
-  | vertices ->
-    let dummy = Vertex<'V> ()
-    dummy.Succs <- vertices
-    vertices |> List.iter (fun v -> v.Preds <- dummy :: v.Preds)
-    g.SetRoot dummy
-  g
+let ipdom ctxt (v: Vertex<_>) =
+  let g' = ctxt.BackwardGraph
+  let v = g'.FindVertexByData v.VData
+  idomAux ctxt.BackwardDomInfo v
 
-let ipdom (g: DiGraph<'V, 'E>) (v: Vertex<'V>) =
-  let g' = g.Reverse () |> preparePostDomAnalysis
-  let v = g'.FindVertex v
-  idomAux g' v
-
-let rec domsAux acc v ctxt =
-  let id = ctxt.IDom.[dfnum ctxt v]
-  if id > 0 then domsAux (ctxt.Vertex.[id] :: acc) ctxt.Vertex.[id] ctxt
+let rec domsAux acc v info =
+  let id = info.IDom.[dfnum info v]
+  if id > 0 then domsAux (info.Vertex.[id] :: acc) info.Vertex.[id] info
   else List.rev acc
 
-let doms (g: DiGraph<'V, 'E>) (v: Vertex<'V>) =
+let doms ctxt v =
+  let g = ctxt.ForwardGraph
   checkVertexInGraph g v
-  initDominator g |> domsAux [] v
+  domsAux [] v ctxt.ForwardDomInfo
 
-let pdoms (g: DiGraph<'V, 'E>) v =
-  let g' = g.Reverse () |> preparePostDomAnalysis
-  initDominator g' |> domsAux [] v
+let pdoms ctxt v =
+  domsAux [] v ctxt.BackwardDomInfo
 
-let computeDomTree (g: DiGraph<'V, 'E>) entry ctxt =
-  let domTree = Array.create ctxt.MaxLength []
-  g.IterVertexDFS (fun v ->
-    let idom = ctxt.IDom.[dfnum ctxt v]
+let computeDomTree (g: DiGraph<'V, 'E>) root info =
+  let domTree = Array.create info.MaxLength []
+  g.IterVertexDFS root (fun v ->
+    let idom = info.IDom.[dfnum info v]
     domTree.[idom] <- v :: domTree.[idom])
   domTree
 
@@ -240,16 +310,20 @@ let rec computeFrontierLocal s ctxt (parent: Vertex<_>) = function
     computeFrontierLocal s ctxt parent rest
   | [] -> s
 
-let rec computeDF (frontiers: Vertex<_> list []) g ctxt (r: Vertex<'V>) =
+let rec computeDF
+    (domTree: Vertex<_> list [])
+    (frontiers: Vertex<_> list [])
+    g
+    ctxt
+    (r: Vertex<'V>) =
   let mutable s = Set.empty
   for succ in r.Succs do
     let succID = dfnum ctxt succ
     let d = ctxt.Vertex.[ctxt.IDom.[succID]]
     if d.GetID () <> r.GetID () then s <- Set.add succID s
   done
-  let domTree = computeDomTree g r ctxt
   for child in domTree.[dfnum ctxt r] do
-    computeDF frontiers g ctxt child
+    computeDF domTree frontiers g ctxt child
     for node in frontiers.[dfnum ctxt child] do
       let doms = domsAux [] node ctxt
       let dominate = doms |> List.exists (fun d -> d.GetID () = r.GetID ())
@@ -258,12 +332,27 @@ let rec computeDF (frontiers: Vertex<_> list []) g ctxt (r: Vertex<'V>) =
   done
   frontiers.[dfnum ctxt r] <- Set.fold (fun df n -> ctxt.Vertex.[n] :: df) [] s
 
-let frontier (g: DiGraph<'V, 'E>) v =
+let frontier ctxt v =
+  let g = ctxt.ForwardGraph
   checkVertexInGraph g v
-  let root = g.GetRoot ()
-  let ctxt = initDominator g
+  let root = ctxt.ForwardRoot
+  let ctxt = ctxt.ForwardDomInfo
   let frontiers = Array.create ctxt.MaxLength []
-  computeDF frontiers g ctxt root
+  let domTree = computeDomTree g root ctxt
+  computeDF domTree frontiers g ctxt root
   frontiers.[dfnum ctxt v]
+
+let dominatorTree ctxt =
+  let g = ctxt.ForwardGraph
+  let root = ctxt.ForwardRoot
+  let info = ctxt.ForwardDomInfo
+  let tree = computeDomTree g root info
+  let tree = Array.sub tree 2 (Array.length tree - 2) // Remove a dummy node
+  let root = info.Vertex.[2]
+  let tree =
+    Array.mapi (fun dfNum vs -> dfNum, vs) tree
+    |> Array.fold (fun tree (dfNum, vs) ->
+        Map.add info.Vertex.[dfNum + 2] vs tree) Map.empty
+  tree, root
 
 // vim: set tw=80 sts=2 sw=2:

@@ -86,6 +86,13 @@ module Intel =
 
       test32 Opcode.DIV (OneOperand (OprReg R.ECX)) 2ul [| 0xf7uy; 0xf1uy |]
 
+    /// 5.1.3 Decimal Arithmetic Instructions
+    [<TestMethod>]
+    member __.``Decimal Arithmetic Parse Test`` () =
+      test32 Opcode.AAA NoOperand 1ul [| 0x37uy |]
+
+      test32 Opcode.AAS NoOperand 1ul [| 0x3Fuy |]
+
     /// 5.1.4 Logical Instructions
     [<TestMethod>]
     member __.``Intel Logical Parse Test`` () =
@@ -126,12 +133,35 @@ module Intel =
     member __.``Intel Control Transfer Parse Test`` () =
       test32 Opcode.JMPNear (OneOperand (OprReg R.ESP)) 2ul [| 0xffuy; 0xe4uy |]
 
+      test32 Opcode.JMPFar
+             (OneOperand (OprDirAddr (Absolute (0x90s, 0x78563412UL, 32<rt>))))
+             7ul
+             [| 0xeauy; 0x12uy; 0x34uy; 0x56uy; 0x78uy; 0x90uy; 0x00uy |]
+
       test Prefix.PrxGS (Some R.GS) WordSize.Bit32
            Opcode.CALLNear
            (OneOperand (OprMem (None, None, Some 16L, 32<rt>))) 7ul
            [| 0x65uy; 0xffuy; 0x15uy; 0x10uy; 0x00uy; 0x00uy; 0x00uy |]
 
+      test32 Opcode.CALLFar
+             (OneOperand (OprDirAddr (Absolute (0x10s, 0x32547698UL, 32<rt>))))
+             7ul
+             [| 0x9auy; 0x98uy; 0x76uy; 0x54uy; 0x32uy; 0x10uy; 0x00uy |]
+
       test32 Opcode.INT (OneOperand (OprImm 1L)) 2ul [| 0xcduy; 0x01uy |]
+
+    /// 5.1.12 Segment Register Instructions
+    [<TestMethod>]
+    member __.``Segment Register Parse Test`` () =
+      test32 Opcode.LES
+             (TwoOperands (OprReg R.ECX,
+                           OprMem (Some R.EDI, None, None, 48<rt>))) 2ul
+             [| 0xc4uy; 0x0fuy |]
+
+      test32 Opcode.LDS
+             (TwoOperands (OprReg R.EDX,
+                           OprMem (Some R.ECX, None, None, 48<rt>))) 2ul
+             [| 0xc5uy; 0x11uy |]
 
   /// 5.2 X87 FPU INSTRUCTIONS
   [<TestClass>]
@@ -173,6 +203,27 @@ module Intel =
       test64 Opcode.VMOVQ (TwoOperands (OprReg (R.XMM0), OprReg (R.XMM2))) 5ul
              [|0xc4uy; 0xe1uy; 0xf9uy; 0xd6uy; 0xd0uy|]
 
+    /// 5.4.4 MMX Comparison Instructions
+    [<TestMethod>]
+    member __.``Intel MMX Comparison Parse Test`` () =
+      test64 Opcode.PCMPEQW
+             (TwoOperands (OprReg R.MM0,
+                           OprMem (Some R.RCX, None, None, 64<rt>))) 3u
+             [| 0x0Fuy; 0x75uy; 0x01uy |]
+
+      test64 Opcode.PCMPEQW
+             (TwoOperands (OprReg R.MM0, OprReg R.MM1)) 3u
+             [| 0x0Fuy; 0x75uy; 0xc1uy |]
+
+      test64 Opcode.PCMPEQW
+             (TwoOperands (OprReg R.XMM0,
+                           OprMem (Some R.RCX, None, None, 128<rt>))) 4u
+             [| 0x66uy; 0x0Fuy; 0x75uy; 0x01uy |]
+
+      test64 Opcode.PCMPEQW
+             (TwoOperands (OprReg R.XMM0, OprReg R.XMM1)) 4u
+             [| 0x66uy; 0x0Fuy; 0x75uy; 0xc1uy |]
+
   /// 5.5 SSE INSTRUCTIONS
   [<TestClass>]
   type SSEClass () =
@@ -210,12 +261,489 @@ module Intel =
   /// 5.8 SUPPLEMENTAL STREAMING SIMD EXTENSIONS 3 (SSSE3) INSTRUCTIONS
   [<TestClass>]
   type SSSE3Class () =
+    /// 5.8.1 Horizontal Addition/Subtraction
+    [<TestMethod>]
+    member __.``Intel Horizontal Addition/Subtraction Parse Test`` () =
+      test64 Opcode.PHADDW
+             (TwoOperands (OprReg R.MM0,
+                           OprMem (Some R.RCX, None, None, 64<rt>))) 4u
+             [| 0x0Fuy; 0x38uy; 0x01uy; 0x01uy |]
+
+      test64 Opcode.PHADDW
+             (TwoOperands (OprReg R.MM0, OprReg R.MM1)) 4u
+             [| 0x0Fuy; 0x38uy; 0x01uy; 0xc1uy |]
+
+      test64 Opcode.PHADDW
+             (TwoOperands (OprReg R.XMM0,
+                           OprMem (Some R.RCX, None, None, 128<rt>))) 5u
+             [| 0x66uy; 0x0Fuy; 0x38uy; 0x01uy; 0x01uy |]
+
+      test64 Opcode.PHADDW
+             (TwoOperands (OprReg R.XMM0, OprReg R.XMM1)) 5u
+             [| 0x66uy; 0x0Fuy; 0x38uy; 0x01uy; 0xc1uy |]
+
+      test64 Opcode.PHADDSW
+             (TwoOperands (OprReg R.MM0,
+                           OprMem (Some R.RCX, None, None, 64<rt>))) 4u
+             [| 0x0Fuy; 0x38uy; 0x03uy; 0x01uy |]
+
+      test64 Opcode.PHADDSW
+             (TwoOperands (OprReg R.MM0, OprReg R.MM1)) 4u
+             [| 0x0Fuy; 0x38uy; 0x03uy; 0xc1uy |]
+
+      test64 Opcode.PHADDSW
+             (TwoOperands (OprReg R.XMM0,
+                           OprMem (Some R.RCX, None, None, 128<rt>))) 5u
+             [| 0x66uy; 0x0Fuy; 0x38uy; 0x03uy; 0x01uy |]
+
+      test64 Opcode.PHADDSW
+             (TwoOperands (OprReg R.XMM0, OprReg R.XMM1)) 5u
+             [| 0x66uy; 0x0Fuy; 0x38uy; 0x03uy; 0xc1uy |]
+
+      test64 Opcode.PHADDD
+             (TwoOperands (OprReg R.MM0,
+                           OprMem (Some R.RCX, None, None, 64<rt>))) 4u
+             [| 0x0Fuy; 0x38uy; 0x02uy; 0x01uy |]
+
+      test64 Opcode.PHADDD
+             (TwoOperands (OprReg R.MM0, OprReg R.MM1)) 4u
+             [| 0x0Fuy; 0x38uy; 0x02uy; 0xc1uy |]
+
+      test64 Opcode.PHADDD
+             (TwoOperands (OprReg R.XMM0,
+                           OprMem (Some R.RCX, None, None, 128<rt>))) 5u
+             [| 0x66uy; 0x0Fuy; 0x38uy; 0x02uy; 0x01uy |]
+
+      test64 Opcode.PHADDD
+             (TwoOperands (OprReg R.XMM0, OprReg R.XMM1)) 5u
+             [| 0x66uy; 0x0Fuy; 0x38uy; 0x02uy; 0xc1uy |]
+
+      test64 Opcode.PHSUBW
+             (TwoOperands (OprReg R.MM0,
+                           OprMem (Some R.RCX, None, None, 64<rt>))) 4u
+             [| 0x0Fuy; 0x38uy; 0x05uy; 0x01uy |]
+
+      test64 Opcode.PHSUBW
+             (TwoOperands (OprReg R.MM0, OprReg R.MM1)) 4u
+             [| 0x0Fuy; 0x38uy; 0x05uy; 0xc1uy |]
+
+      test64 Opcode.PHSUBW
+             (TwoOperands (OprReg R.XMM0,
+                           OprMem (Some R.RCX, None, None, 128<rt>))) 5u
+             [| 0x66uy; 0x0Fuy; 0x38uy; 0x05uy; 0x01uy |]
+
+      test64 Opcode.PHSUBW
+             (TwoOperands (OprReg R.XMM0, OprReg R.XMM1)) 5u
+             [| 0x66uy; 0x0Fuy; 0x38uy; 0x05uy; 0xc1uy |]
+
+      test64 Opcode.PHSUBSW
+             (TwoOperands (OprReg R.MM0,
+                           OprMem (Some R.RCX, None, None, 64<rt>))) 4u
+             [| 0x0Fuy; 0x38uy; 0x07uy; 0x01uy |]
+
+      test64 Opcode.PHSUBSW
+             (TwoOperands (OprReg R.MM0, OprReg R.MM1)) 4u
+             [| 0x0Fuy; 0x38uy; 0x07uy; 0xc1uy |]
+
+      test64 Opcode.PHSUBSW
+             (TwoOperands (OprReg R.XMM0,
+                           OprMem (Some R.RCX, None, None, 128<rt>))) 5u
+             [| 0x66uy; 0x0Fuy; 0x38uy; 0x07uy; 0x01uy |]
+
+      test64 Opcode.PHSUBSW
+             (TwoOperands (OprReg R.XMM0, OprReg R.XMM1)) 5u
+             [| 0x66uy; 0x0Fuy; 0x38uy; 0x07uy; 0xc1uy |]
+
+      test64 Opcode.PHSUBD
+             (TwoOperands (OprReg R.MM0,
+                           OprMem (Some R.RCX, None, None, 64<rt>))) 4u
+             [| 0x0Fuy; 0x38uy; 0x06uy; 0x01uy |]
+
+      test64 Opcode.PHSUBD
+             (TwoOperands (OprReg R.MM0, OprReg R.MM1)) 4u
+             [| 0x0Fuy; 0x38uy; 0x06uy; 0xc1uy |]
+
+      test64 Opcode.PHSUBD
+             (TwoOperands (OprReg R.XMM0,
+                           OprMem (Some R.RCX, None, None, 128<rt>))) 5u
+             [| 0x66uy; 0x0Fuy; 0x38uy; 0x06uy; 0x01uy |]
+
+      test64 Opcode.PHSUBD
+             (TwoOperands (OprReg R.XMM0, OprReg R.XMM1)) 5u
+             [| 0x66uy; 0x0Fuy; 0x38uy; 0x06uy; 0xc1uy |]
+
+    /// 5.8.2 Packed Absolute Values
+    [<TestMethod>]
+    member __.``Intel Packed Absolute Values Parse Test`` () =
+      test64 Opcode.PABSB
+             (TwoOperands (OprReg R.MM0,
+                           OprMem (Some R.RCX, None, None, 64<rt>))) 4u
+             [| 0x0Fuy; 0x38uy; 0x1Cuy; 0x01uy |]
+
+      test64 Opcode.PABSB
+             (TwoOperands (OprReg R.MM0, OprReg R.MM1)) 4u
+             [| 0x0Fuy; 0x38uy; 0x1Cuy; 0xc1uy |]
+
+      test64 Opcode.PABSB
+             (TwoOperands (OprReg R.XMM0,
+                           OprMem (Some R.RCX, None, None, 128<rt>))) 5u
+             [| 0x66uy; 0x0Fuy; 0x38uy; 0x1Cuy; 0x01uy |]
+
+      test64 Opcode.PABSB
+             (TwoOperands (OprReg R.XMM0, OprReg R.XMM1)) 5u
+             [| 0x66uy; 0x0Fuy; 0x38uy; 0x1Cuy; 0xc1uy |]
+
+      test64 Opcode.PABSD
+             (TwoOperands (OprReg R.MM0,
+                           OprMem (Some R.RCX, None, None, 64<rt>))) 4u
+             [| 0x0Fuy; 0x38uy; 0x1Euy; 0x01uy |]
+
+      test64 Opcode.PABSD
+             (TwoOperands (OprReg R.MM0, OprReg R.MM1)) 4u
+             [| 0x0Fuy; 0x38uy; 0x1Euy; 0xc1uy |]
+
+      test64 Opcode.PABSD
+             (TwoOperands (OprReg R.XMM0,
+                           OprMem (Some R.RCX, None, None, 128<rt>))) 5u
+             [| 0x66uy; 0x0Fuy; 0x38uy; 0x1Euy; 0x01uy |]
+
+      test64 Opcode.PABSD
+             (TwoOperands (OprReg R.XMM0, OprReg R.XMM1)) 5u
+             [| 0x66uy; 0x0Fuy; 0x38uy; 0x1Euy; 0xc1uy |]
+
+      test64 Opcode.PABSW
+             (TwoOperands (OprReg R.MM0,
+                           OprMem (Some R.RCX, None, None, 64<rt>))) 4u
+             [| 0x0Fuy; 0x38uy; 0x1Duy; 0x01uy |]
+
+      test64 Opcode.PABSW
+             (TwoOperands (OprReg R.MM0, OprReg R.MM1)) 4u
+             [| 0x0Fuy; 0x38uy; 0x1Duy; 0xc1uy |]
+
+      test64 Opcode.PABSW
+             (TwoOperands (OprReg R.XMM0,
+                           OprMem (Some R.RCX, None, None, 128<rt>))) 5u
+             [| 0x66uy; 0x0Fuy; 0x38uy; 0x1Duy; 0x01uy |]
+
+      test64 Opcode.PABSW
+             (TwoOperands (OprReg R.XMM0, OprReg R.XMM1)) 5u
+             [| 0x66uy; 0x0Fuy; 0x38uy; 0x1Duy; 0xc1uy |]
+
+    /// 5.8.4 Packed Multiply High with Round and Scale
+    [<TestMethod>]
+    member __.``Intel Packed Mul High with Round and Scale Parse Test`` () =
+      test64 Opcode.PMULHRSW
+             (TwoOperands (OprReg R.MM0,
+                           OprMem (Some R.RCX, None, None, 64<rt>))) 4u
+             [| 0x0Fuy; 0x38uy; 0x0Buy; 0x01uy |]
+
+      test64 Opcode.PMULHRSW
+             (TwoOperands (OprReg R.MM0, OprReg R.MM1)) 4u
+             [| 0x0Fuy; 0x38uy; 0x0Buy; 0xc1uy |]
+
+      test64 Opcode.PMULHRSW
+             (TwoOperands (OprReg R.XMM0,
+                           OprMem (Some R.RCX, None, None, 128<rt>))) 5u
+             [| 0x66uy; 0x0Fuy; 0x38uy; 0x0Buy; 0x01uy |]
+
+      test64 Opcode.PMULHRSW
+             (TwoOperands (OprReg R.XMM0, OprReg R.XMM1)) 5u
+             [| 0x66uy; 0x0Fuy; 0x38uy; 0x0Buy; 0xc1uy |]
+
+    /// 5.8.6 Packed Sign
+    [<TestMethod>]
+    member __.``Intel Packed Sign Parse Test`` () =
+      test64 Opcode.PSIGNB
+             (TwoOperands (OprReg R.MM0,
+                           OprMem (Some R.RCX, None, None, 64<rt>))) 4u
+             [| 0x0Fuy; 0x38uy; 0x08uy; 0x01uy |]
+
+      test64 Opcode.PSIGNB
+             (TwoOperands (OprReg R.MM0, OprReg R.MM1)) 4u
+             [| 0x0Fuy; 0x38uy; 0x08uy; 0xc1uy |]
+
+      test64 Opcode.PSIGNB
+             (TwoOperands (OprReg R.XMM0,
+                           OprMem (Some R.RCX, None, None, 128<rt>))) 5u
+             [| 0x66uy; 0x0Fuy; 0x38uy; 0x08uy; 0x01uy |]
+
+      test64 Opcode.PSIGNB
+             (TwoOperands (OprReg R.XMM0, OprReg R.XMM1)) 5u
+             [| 0x66uy; 0x0Fuy; 0x38uy; 0x08uy; 0xc1uy |]
+
+      test64 Opcode.PSIGNW
+             (TwoOperands (OprReg R.MM0,
+                           OprMem (Some R.RCX, None, None, 64<rt>))) 4u
+             [| 0x0Fuy; 0x38uy; 0x09uy; 0x01uy |]
+
+      test64 Opcode.PSIGNW
+             (TwoOperands (OprReg R.MM0, OprReg R.MM1)) 4u
+             [| 0x0Fuy; 0x38uy; 0x09uy; 0xc1uy |]
+
+      test64 Opcode.PSIGNW
+             (TwoOperands (OprReg R.XMM0,
+                           OprMem (Some R.RCX, None, None, 128<rt>))) 5u
+             [| 0x66uy; 0x0Fuy; 0x38uy; 0x09uy; 0x01uy |]
+
+      test64 Opcode.PSIGNW
+             (TwoOperands (OprReg R.XMM0, OprReg R.XMM1)) 5u
+             [| 0x66uy; 0x0Fuy; 0x38uy; 0x09uy; 0xc1uy |]
+
+      test64 Opcode.PSIGND
+             (TwoOperands (OprReg R.MM0,
+                           OprMem (Some R.RCX, None, None, 64<rt>))) 4u
+             [| 0x0Fuy; 0x38uy; 0x0Auy; 0x01uy |]
+
+      test64 Opcode.PSIGND
+             (TwoOperands (OprReg R.MM0, OprReg R.MM1)) 4u
+             [| 0x0Fuy; 0x38uy; 0x0Auy; 0xc1uy |]
+
+      test64 Opcode.PSIGND
+             (TwoOperands (OprReg R.XMM0,
+                           OprMem (Some R.RCX, None, None, 128<rt>))) 5u
+             [| 0x66uy; 0x0Fuy; 0x38uy; 0x0Auy; 0x01uy |]
+
+      test64 Opcode.PSIGND
+             (TwoOperands (OprReg R.XMM0, OprReg R.XMM1)) 5u
+             [| 0x66uy; 0x0Fuy; 0x38uy; 0x0Auy; 0xc1uy |]
+
     /// 5.8.7 Packed Align Right
     [<TestMethod>]
-    member __.``Intel Packed AlignRight Parse Test`` () =
+    member __.``Intel Packed Align Right Parse Test`` () =
       test64 Opcode.PALIGNR
              (ThreeOperands (OprReg R.XMM2, OprReg R.XMM1, OprImm 1L)) 6ul
              [| 0x66uy; 0x0fuy; 0x3auy; 0x0fuy; 0xd1uy; 0x01uy |]
+
+  /// 5.10 SSE4.1 INSTRUCTIONS
+  [<TestClass>]
+  type SSSE41Class () =
+    /// 5.10.1 Dword Multiply Instructions
+    [<TestMethod>]
+    member __.``Intel Dword Multiply Parse Test`` () =
+      test64 Opcode.PMULLD
+             (TwoOperands (OprReg R.XMM0,
+                           OprMem (Some R.RDX, None, None, 128<rt>))) 5u
+             [| 0x66uy; 0x0Fuy; 0x38uy; 0x40uy; 0x02uy |]
+
+      test64 Opcode.PMULLD
+             (TwoOperands (OprReg R.XMM0, OprReg R.XMM2)) 5u
+             [| 0x66uy; 0x0Fuy; 0x38uy; 0x40uy; 0xc2uy |]
+
+      test64 Opcode.PMULDQ
+             (TwoOperands (OprReg R.XMM0,
+                           OprMem (Some R.RDX, None, None, 128<rt>))) 5u
+             [| 0x66uy; 0x0Fuy; 0x38uy; 0x28uy; 0x02uy |]
+
+      test64 Opcode.PMULDQ
+             (TwoOperands (OprReg R.XMM0, OprReg R.XMM2)) 5u
+             [| 0x66uy; 0x0Fuy; 0x38uy; 0x28uy; 0xc2uy |]
+
+    /// 5.10.5 Packed Integer MIN/MAX Instructions
+    [<TestMethod>]
+    member __.``Intel Packed Integer MIN/MAX Parse Test`` () =
+      test64 Opcode.PMINUW
+             (TwoOperands (OprReg R.XMM0,
+                           OprMem (Some R.RDX, None, None, 128<rt>))) 5u
+             [| 0x66uy; 0x0Fuy; 0x38uy; 0x3Auy; 0x02uy |]
+
+      test64 Opcode.PMINUW
+             (TwoOperands (OprReg R.XMM0, OprReg R.XMM2)) 5u
+             [| 0x66uy; 0x0Fuy; 0x38uy; 0x3Auy; 0xc2uy |]
+
+      test64 Opcode.PMINSD
+             (TwoOperands (OprReg R.XMM0,
+                           OprMem (Some R.RDX, None, None, 128<rt>))) 5u
+             [| 0x66uy; 0x0Fuy; 0x38uy; 0x39uy; 0x02uy |]
+
+      test64 Opcode.PMINSD
+             (TwoOperands (OprReg R.XMM0, OprReg R.XMM2)) 5u
+             [| 0x66uy; 0x0Fuy; 0x38uy; 0x39uy; 0xc2uy |]
+
+      test64 Opcode.PMAXUW
+             (TwoOperands (OprReg R.XMM0,
+                           OprMem (Some R.RDX, None, None, 128<rt>))) 5u
+             [| 0x66uy; 0x0Fuy; 0x38uy; 0x3Euy; 0x02uy |]
+
+      test64 Opcode.PMAXUW
+             (TwoOperands (OprReg R.XMM0, OprReg R.XMM2)) 5u
+             [| 0x66uy; 0x0Fuy; 0x38uy; 0x3Euy; 0xc2uy |]
+
+      test64 Opcode.PMAXUD
+             (TwoOperands (OprReg R.XMM0,
+                           OprMem (Some R.RDX, None, None, 128<rt>))) 5u
+             [| 0x66uy; 0x0Fuy; 0x38uy; 0x3Fuy; 0x02uy |]
+
+      test64 Opcode.PMAXUD
+             (TwoOperands (OprReg R.XMM0, OprReg R.XMM2)) 5u
+             [| 0x66uy; 0x0Fuy; 0x38uy; 0x3Fuy; 0xc2uy |]
+
+      test64 Opcode.PMAXSB
+             (TwoOperands (OprReg R.XMM0,
+                           OprMem (Some R.RDX, None, None, 128<rt>))) 5u
+             [| 0x66uy; 0x0Fuy; 0x38uy; 0x3Cuy; 0x02uy |]
+
+      test64 Opcode.PMAXSB
+             (TwoOperands (OprReg R.XMM0, OprReg R.XMM2)) 5u
+             [| 0x66uy; 0x0Fuy; 0x38uy; 0x3Cuy; 0xc2uy |]
+
+      test64 Opcode.PMAXSD
+             (TwoOperands (OprReg R.XMM0,
+                           OprMem (Some R.RDX, None, None, 128<rt>))) 5u
+             [| 0x66uy; 0x0Fuy; 0x38uy; 0x3Duy; 0x02uy |]
+
+      test64 Opcode.PMAXSD
+             (TwoOperands (OprReg R.XMM0, OprReg R.XMM2)) 5u
+             [| 0x66uy; 0x0Fuy; 0x38uy; 0x3Duy; 0xc2uy |]
+
+    /// 5.10.8 Packed Integer Format Conversions
+    [<TestMethod>]
+    member __.``Intel Packed Integer Format Conversions Parse Test`` () =
+      test64 Opcode.PMOVSXBD
+             (TwoOperands (OprReg R.XMM0,
+                           OprMem (Some R.RDX, None, None, 32<rt>))) 5u
+             [| 0x66uy; 0x0fuy; 0x38uy; 0x21uy; 0x02uy |]
+
+      test64 Opcode.PMOVSXBD
+             (TwoOperands (OprReg R.XMM0, OprReg R.XMM2)) 5u
+             [| 0x66uy; 0x0fuy; 0x38uy; 0x21uy; 0xc2uy |]
+
+      test64 Opcode.PMOVSXBQ
+             (TwoOperands (OprReg R.XMM0,
+                           OprMem (Some R.RDX, None, None, 16<rt>))) 5u
+             [| 0x66uy; 0x0fuy; 0x38uy; 0x22uy; 0x02uy |]
+
+      test64 Opcode.PMOVSXBQ
+             (TwoOperands (OprReg R.XMM0, OprReg R.XMM2)) 5u
+             [| 0x66uy; 0x0fuy; 0x38uy; 0x22uy; 0xc2uy |]
+
+      test64 Opcode.PMOVSXBW
+             (TwoOperands (OprReg R.XMM0,
+                           OprMem (Some R.RDX, None, None, 64<rt>))) 5u
+             [| 0x66uy; 0x0fuy; 0x38uy; 0x20uy; 0x02uy |]
+
+      test64 Opcode.PMOVSXBW
+             (TwoOperands (OprReg R.XMM0, OprReg R.XMM2)) 5u
+             [| 0x66uy; 0x0fuy; 0x38uy; 0x20uy; 0xc2uy |]
+
+      test64 Opcode.PMOVSXDQ
+             (TwoOperands (OprReg R.XMM0,
+                           OprMem (Some R.RDX, None, None, 64<rt>))) 5u
+             [| 0x66uy; 0x0fuy; 0x38uy; 0x25uy; 0x02uy |]
+
+      test64 Opcode.PMOVSXDQ
+             (TwoOperands (OprReg R.XMM0, OprReg R.XMM2)) 5u
+             [| 0x66uy; 0x0fuy; 0x38uy; 0x25uy; 0xc2uy |]
+
+      test64 Opcode.PMOVSXWD
+             (TwoOperands (OprReg R.XMM0,
+                           OprMem (Some R.RDX, None, None, 64<rt>))) 5u
+             [| 0x66uy; 0x0fuy; 0x38uy; 0x23uy; 0x02uy |]
+
+      test64 Opcode.PMOVSXWD
+             (TwoOperands (OprReg R.XMM0,
+                           OprReg R.XMM2)) 5u
+             [| 0x66uy; 0x0fuy; 0x38uy; 0x23uy; 0xc2uy |]
+
+      test64 Opcode.PMOVSXWQ
+             (TwoOperands (OprReg R.XMM0,
+                           OprMem (Some R.RDX, None, None, 32<rt>))) 5u
+             [| 0x66uy; 0x0fuy; 0x38uy; 0x24uy; 0x02uy |]
+
+      test64 Opcode.PMOVSXWQ
+             (TwoOperands (OprReg R.XMM0, OprReg R.XMM2)) 5u
+             [| 0x66uy; 0x0fuy; 0x38uy; 0x24uy; 0xc2uy |]
+
+      test64 Opcode.PMOVZXBD
+             (TwoOperands (OprReg R.XMM0,
+                           OprMem (Some R.RDX, None, None, 32<rt>))) 5u
+             [| 0x66uy; 0x0fuy; 0x38uy; 0x31uy; 0x02uy |]
+
+      test64 Opcode.PMOVZXBD
+             (TwoOperands (OprReg R.XMM0, OprReg R.XMM2)) 5u
+             [| 0x66uy; 0x0fuy; 0x38uy; 0x31uy; 0xc2uy |]
+
+      test64 Opcode.PMOVZXBQ
+             (TwoOperands (OprReg R.XMM0,
+                           OprMem (Some R.RDX, None, None, 16<rt>))) 5u
+             [| 0x66uy; 0x0fuy; 0x38uy; 0x32uy; 0x02uy |]
+
+      test64 Opcode.PMOVZXBQ
+             (TwoOperands (OprReg R.XMM0, OprReg R.XMM2)) 5u
+             [| 0x66uy; 0x0fuy; 0x38uy; 0x32uy; 0xc2uy |]
+
+      test64 Opcode.PMOVZXBW
+             (TwoOperands (OprReg R.XMM0,
+                           OprMem (Some R.RDX, None, None, 64<rt>))) 5u
+             [| 0x66uy; 0x0fuy; 0x38uy; 0x30uy; 0x02uy |]
+
+      test64 Opcode.PMOVZXBW
+             (TwoOperands (OprReg R.XMM0, OprReg R.XMM2)) 5u
+             [| 0x66uy; 0x0fuy; 0x38uy; 0x30uy; 0xc2uy |]
+
+      test64 Opcode.PMOVZXDQ
+             (TwoOperands (OprReg R.XMM0,
+                           OprMem (Some R.RDX, None, None, 64<rt>))) 5u
+             [| 0x66uy; 0x0fuy; 0x38uy; 0x35uy; 0x02uy |]
+
+      test64 Opcode.PMOVZXDQ
+             (TwoOperands (OprReg R.XMM0, OprReg R.XMM2)) 5u
+             [| 0x66uy; 0x0fuy; 0x38uy; 0x35uy; 0xc2uy |]
+
+      test64 Opcode.PMOVZXWD
+             (TwoOperands (OprReg R.XMM0,
+                           OprMem (Some R.RDX, None, None, 64<rt>))) 5u
+             [| 0x66uy; 0x0fuy; 0x38uy; 0x33uy; 0x02uy |]
+
+      test64 Opcode.PMOVZXWD
+             (TwoOperands (OprReg R.XMM0, OprReg R.XMM2)) 5u
+             [| 0x66uy; 0x0fuy; 0x38uy; 0x33uy; 0xc2uy |]
+
+      test64 Opcode.PMOVZXWQ
+             (TwoOperands (OprReg R.XMM0,
+                           OprMem (Some R.RDX, None, None, 32<rt>))) 5u
+             [| 0x66uy; 0x0fuy; 0x38uy; 0x34uy; 0x02uy |]
+
+      test64 Opcode.PMOVZXWQ
+             (TwoOperands (OprReg R.XMM0, OprReg R.XMM2)) 5u
+             [| 0x66uy; 0x0fuy; 0x38uy; 0x34uy; 0xc2uy |]
+
+    /// 5.10.10 Horizontal Search
+    [<TestMethod>]
+    member __.``Intel Horizontal Search Parse Test`` () =
+      test64 Opcode.PHMINPOSUW
+             (TwoOperands (OprReg R.XMM0,
+                           OprMem (Some R.RDX, None, None, 128<rt>))) 5u
+             [| 0x66uy; 0x0Fuy; 0x38uy; 0x41uy; 0x02uy |]
+
+      test64 Opcode.PHMINPOSUW
+             (TwoOperands (OprReg R.XMM0, OprReg R.XMM2)) 5u
+             [| 0x66uy; 0x0Fuy; 0x38uy; 0x41uy; 0xc2uy |]
+
+    /// 5.10.13 Dword Packing With Unsigned Saturation
+    [<TestMethod>]
+    member __.``Intel Dword Packing With Unsigned Saturation Parse Test`` () =
+      test64 Opcode.PACKUSDW
+             (TwoOperands (OprReg R.XMM0,
+                           OprMem (Some R.RDX, None, None, 128<rt>))) 5u
+             [| 0x66uy; 0x0Fuy; 0x38uy; 0x2Buy; 0x02uy |]
+      test64 Opcode.PACKUSDW
+             (TwoOperands (OprReg R.XMM0, OprReg R.XMM2)) 5u
+             [| 0x66uy; 0x0Fuy; 0x38uy; 0x2Buy; 0xc2uy |]
+
+  /// 5.11 SSE4.2 INSTRUCTION SET
+  [<TestClass>]
+  type SSSE42Class () =
+    /// 5.11.2 Packed Comparison SIMD integer Instruction
+    [<TestMethod>]
+    member __.``Intel Packed Comparison SIMD integer Parse Test`` () =
+      test64 Opcode.PCMPGTQ
+             (TwoOperands (OprReg R.XMM0,
+                           OprMem (Some R.RDX, None, None, 128<rt>))) 5u
+             [| 0x66uy; 0x0Fuy; 0x38uy; 0x37uy; 0x02uy |]
+
+      test64 Opcode.PCMPGTQ
+             (TwoOperands (OprReg R.XMM0, OprReg R.XMM2)) 5u
+             [| 0x66uy; 0x0Fuy; 0x38uy; 0x37uy; 0xc2uy |]
 
   /// 5.22 INTEL MEMORY PROTECTION EXTENSIONS
   [<TestClass>]
@@ -228,6 +756,716 @@ module Intel =
              [| 0x66uy; 0x0fuy; 0x1buy; 0x84uy; 0x24uy;
                 0x00uy; 0x02uy; 0x00uy; 0x00uy |]
 
+  /// INTEL ADVANCED VECTOR EXTENSIONS
+  [<TestClass>]
+  type AVXClass () =
+    [<TestMethod>]
+    member __.``Intel AVX Parse Test`` () =
+      test64 Opcode.VPCMPEQW
+             (ThreeOperands (OprReg R.XMM0, OprReg R.XMM10,
+                             OprMem (Some R.RBX, None, None, 128<rt>))) 5u
+             [| 0xC4uy; 0xE1uy; 0x29uy; 0x75uy; 0x03uy |]
+
+      test64 Opcode.VPCMPEQW
+             (ThreeOperands (OprReg R.XMM0, OprReg R.XMM10,
+                             OprReg R.XMM3)) 5u
+             [| 0xC4uy; 0xE1uy; 0x29uy; 0x75uy; 0xc3uy |]
+      test64 Opcode.VPCMPEQW
+             (ThreeOperands (OprReg R.YMM0, OprReg R.YMM10,
+                             OprMem (Some R.RBX, None, None, 256<rt>))) 5u
+             [| 0xC4uy; 0xE1uy; 0x2Duy; 0x75uy; 0x03uy |]
+
+      test64 Opcode.VPCMPEQW
+             (ThreeOperands (OprReg R.YMM0, OprReg R.YMM10, OprReg R.YMM3)) 5u
+             [| 0xC4uy; 0xE1uy; 0x2Duy; 0x75uy; 0xc3uy |]
+
+      test64 Opcode.VPABSB
+             (TwoOperands (OprReg R.XMM0,
+                           OprMem (Some R.RBX, None, None, 128<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x1Cuy; 0x03uy |]
+
+      test64 Opcode.VPABSB
+             (TwoOperands (OprReg R.XMM0, OprReg R.XMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x1Cuy; 0xc3uy |]
+
+      test64 Opcode.VPABSB
+             (TwoOperands (OprReg R.YMM0,
+                           OprMem (Some R.RBX, None, None, 256<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x1Cuy; 0x03uy |]
+
+      test64 Opcode.VPABSB
+             (TwoOperands (OprReg R.YMM0, OprReg R.YMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x1Cuy; 0xc3uy |]
+
+      test64 Opcode.VPABSD
+             (TwoOperands (OprReg R.XMM0,
+                           OprMem (Some R.RBX, None, None, 128<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x1Euy; 0x03uy |]
+
+      test64 Opcode.VPABSD
+             (TwoOperands (OprReg R.XMM0, OprReg R.XMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x1Euy; 0xc3uy |]
+
+      test64 Opcode.VPABSD
+             (TwoOperands (OprReg R.YMM0,
+                           OprMem (Some R.RBX, None, None, 256<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x1Euy; 0x03uy |]
+
+      test64 Opcode.VPABSD
+             (TwoOperands (OprReg R.YMM0, OprReg R.YMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x1Euy; 0xc3uy |]
+
+      test64 Opcode.VPABSW
+             (TwoOperands (OprReg R.XMM0,
+                           OprMem (Some R.RBX, None, None, 128<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x1Duy; 0x03uy |]
+
+      test64 Opcode.VPABSW
+             (TwoOperands (OprReg R.XMM0, OprReg R.XMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x1Duy; 0xc3uy |]
+
+      test64 Opcode.VPABSW
+             (TwoOperands (OprReg R.YMM0,
+                           OprMem (Some R.RBX, None, None, 256<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x1Duy; 0x03uy |]
+
+      test64 Opcode.VPABSW
+             (TwoOperands (OprReg R.YMM0, OprReg R.YMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x1Duy; 0xc3uy |]
+
+      test64 Opcode.VPHADDD
+             (ThreeOperands (OprReg R.XMM0, OprReg R.XMM3,
+                             OprMem (Some R.RBX, None, None, 128<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x02uy; 0x03uy |]
+
+      test64 Opcode.VPHADDD
+             (ThreeOperands (OprReg R.XMM0, OprReg R.XMM3, OprReg R.XMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x02uy; 0xc3uy |]
+
+      test64 Opcode.VPHADDD
+             (ThreeOperands (OprReg R.YMM0, OprReg R.YMM3,
+                             OprMem (Some R.RBX, None, None, 256<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x02uy; 0x03uy |]
+
+      test64 Opcode.VPHADDD
+             (ThreeOperands (OprReg R.YMM0, OprReg R.YMM3, OprReg R.YMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x02uy; 0xc3uy |]
+
+      test64 Opcode.VPHADDSW
+             (ThreeOperands (OprReg R.XMM0, OprReg R.XMM3,
+                             OprMem (Some R.RBX, None, None, 128<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x03uy; 0x03uy |]
+
+      test64 Opcode.VPHADDSW
+             (ThreeOperands (OprReg R.XMM0, OprReg R.XMM3, OprReg R.XMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x03uy; 0xc3uy |]
+
+      test64 Opcode.VPHADDSW
+             (ThreeOperands (OprReg R.YMM0, OprReg R.YMM3,
+                             OprMem (Some R.RBX, None, None, 256<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x03uy; 0x03uy |]
+
+      test64 Opcode.VPHADDSW
+             (ThreeOperands (OprReg R.YMM0, OprReg R.YMM3, OprReg R.YMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x03uy; 0xc3uy |]
+
+      test64 Opcode.VPHADDW
+             (ThreeOperands (OprReg R.XMM0, OprReg R.XMM3,
+                             OprMem (Some R.RBX, None, None, 128<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x01uy; 0x03uy |]
+
+      test64 Opcode.VPHADDW
+             (ThreeOperands (OprReg R.XMM0, OprReg R.XMM3, OprReg R.XMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x01uy; 0xc3uy |]
+
+      test64 Opcode.VPHADDW
+             (ThreeOperands (OprReg R.YMM0, OprReg R.YMM3,
+                             OprMem (Some R.RBX, None, None, 256<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x01uy; 0x03uy |]
+
+      test64 Opcode.VPHADDW
+             (ThreeOperands (OprReg R.YMM0, OprReg R.YMM3, OprReg R.YMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x01uy; 0xc3uy |]
+
+      test64 Opcode.VPHSUBD
+             (ThreeOperands (OprReg R.XMM0, OprReg R.XMM3,
+                             OprMem (Some R.RBX, None, None, 128<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x06uy; 0x03uy |]
+
+      test64 Opcode.VPHSUBD
+             (ThreeOperands (OprReg R.XMM0, OprReg R.XMM3, OprReg R.XMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x06uy; 0xc3uy |]
+
+      test64 Opcode.VPHSUBD
+             (ThreeOperands (OprReg R.YMM0, OprReg R.YMM3,
+                             OprMem (Some R.RBX, None, None, 256<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x06uy; 0x03uy |]
+
+      test64 Opcode.VPHSUBD
+             (ThreeOperands (OprReg R.YMM0, OprReg R.YMM3, OprReg R.YMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x06uy; 0xc3uy |]
+
+      test64 Opcode.VPHSUBSW
+             (ThreeOperands (OprReg R.XMM0, OprReg R.XMM3,
+                             OprMem (Some R.RBX, None, None, 128<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x07uy; 0x03uy |]
+
+      test64 Opcode.VPHSUBSW
+             (ThreeOperands (OprReg R.XMM0, OprReg R.XMM3, OprReg R.XMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x07uy; 0xc3uy |]
+
+      test64 Opcode.VPHSUBSW
+             (ThreeOperands (OprReg R.YMM0, OprReg R.YMM3,
+                             OprMem (Some R.RBX, None, None, 256<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x07uy; 0x03uy |]
+
+      test64 Opcode.VPHSUBSW
+             (ThreeOperands (OprReg R.YMM0, OprReg R.YMM3, OprReg R.YMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x07uy; 0xc3uy |]
+
+      test64 Opcode.VPHSUBW
+             (ThreeOperands (OprReg R.XMM0, OprReg R.XMM3,
+                             OprMem (Some R.RBX, None, None, 128<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x05uy; 0x03uy |]
+
+      test64 Opcode.VPHSUBW
+             (ThreeOperands (OprReg R.XMM0, OprReg R.XMM3, OprReg R.XMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x05uy; 0xc3uy |]
+
+      test64 Opcode.VPHSUBW
+             (ThreeOperands (OprReg R.YMM0, OprReg R.YMM3,
+                             OprMem (Some R.RBX, None, None, 256<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x05uy; 0x03uy |]
+
+      test64 Opcode.VPHSUBW
+             (ThreeOperands (OprReg R.YMM0, OprReg R.YMM3, OprReg R.YMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x05uy; 0xc3uy |]
+
+      test64 Opcode.VPMULHRSW
+             (ThreeOperands (OprReg R.XMM0, OprReg R.XMM3,
+                             OprMem (Some R.RBX, None, None, 128<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x0Buy; 0x03uy |]
+
+      test64 Opcode.VPMULHRSW
+             (ThreeOperands (OprReg R.XMM0, OprReg R.XMM3, OprReg R.XMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x0Buy; 0xc3uy |]
+
+      test64 Opcode.VPMULHRSW
+             (ThreeOperands (OprReg R.YMM0, OprReg R.YMM3,
+                             OprMem (Some R.RBX, None, None, 256<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x0Buy; 0x03uy |]
+
+      test64 Opcode.VPMULHRSW
+             (ThreeOperands (OprReg R.YMM0, OprReg R.YMM3, OprReg R.YMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x0Buy; 0xc3uy |]
+
+      test64 Opcode.VPSIGNB
+             (ThreeOperands (OprReg R.XMM0, OprReg R.XMM3,
+                             OprMem (Some R.RBX, None, None, 128<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x08uy; 0x03uy |]
+
+      test64 Opcode.VPSIGNB
+             (ThreeOperands (OprReg R.XMM0, OprReg R.XMM3, OprReg R.XMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x08uy; 0xc3uy |]
+
+      test64 Opcode.VPSIGNB
+             (ThreeOperands (OprReg R.YMM0, OprReg R.YMM3,
+                             OprMem (Some R.RBX, None, None, 256<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x08uy; 0x03uy |]
+
+      test64 Opcode.VPSIGNB
+             (ThreeOperands (OprReg R.YMM0, OprReg R.YMM3, OprReg R.YMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x08uy; 0xc3uy |]
+
+      test64 Opcode.VPSIGND
+             (ThreeOperands (OprReg R.XMM0, OprReg R.XMM3,
+                             OprMem (Some R.RBX, None, None, 128<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x0Auy; 0x03uy |]
+
+      test64 Opcode.VPSIGND
+             (ThreeOperands (OprReg R.XMM0, OprReg R.XMM3, OprReg R.XMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x0Auy; 0xc3uy |]
+
+      test64 Opcode.VPSIGND
+             (ThreeOperands (OprReg R.YMM0, OprReg R.YMM3,
+                             OprMem (Some R.RBX, None, None, 256<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x0Auy; 0x03uy |]
+
+      test64 Opcode.VPSIGND
+             (ThreeOperands (OprReg R.YMM0, OprReg R.YMM3, OprReg R.YMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x0Auy; 0xc3uy |]
+
+      test64 Opcode.VPSIGNW
+             (ThreeOperands (OprReg R.XMM0, OprReg R.XMM3,
+                             OprMem (Some R.RBX, None, None, 128<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x09uy; 0x03uy |]
+
+      test64 Opcode.VPSIGNW
+             (ThreeOperands (OprReg R.XMM0, OprReg R.XMM3, OprReg R.XMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x09uy; 0xc3uy |]
+
+      test64 Opcode.VPSIGNW
+             (ThreeOperands (OprReg R.YMM0, OprReg R.YMM3,
+                             OprMem (Some R.RBX, None, None, 256<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x09uy; 0x03uy |]
+
+      test64 Opcode.VPSIGNW
+             (ThreeOperands (OprReg R.YMM0, OprReg R.YMM3, OprReg R.YMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x09uy; 0xc3uy |]
+
+      test64 Opcode.VPACKUSDW
+             (ThreeOperands (OprReg R.XMM0, OprReg R.XMM3,
+                             OprMem (Some R.RBX, None, None, 128<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x2Buy; 0x03uy |]
+
+      test64 Opcode.VPACKUSDW
+             (ThreeOperands (OprReg R.XMM0, OprReg R.XMM3, OprReg R.XMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x2Buy; 0xc3uy |]
+
+      test64 Opcode.VPACKUSDW
+             (ThreeOperands (OprReg R.YMM0, OprReg R.YMM3,
+                             OprMem (Some R.RBX, None, None, 256<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x2Buy; 0x03uy |]
+
+      test64 Opcode.VPACKUSDW
+             (ThreeOperands (OprReg R.YMM0, OprReg R.YMM3, OprReg R.YMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x2Buy; 0xc3uy |]
+
+      test64 Opcode.VPCMPGTQ
+             (ThreeOperands (OprReg R.XMM0, OprReg R.XMM3,
+                             OprMem (Some R.RBX, None, None, 128<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x37uy; 0x03uy |]
+
+      test64 Opcode.VPCMPGTQ
+             (ThreeOperands (OprReg R.XMM0, OprReg R.XMM3, OprReg R.XMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x37uy; 0xc3uy |]
+
+      test64 Opcode.VPCMPGTQ
+             (ThreeOperands (OprReg R.YMM0, OprReg R.YMM3,
+                             OprMem (Some R.RBX, None, None, 256<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x37uy; 0x03uy |]
+
+      test64 Opcode.VPCMPGTQ
+             (ThreeOperands (OprReg R.YMM0, OprReg R.YMM3, OprReg R.YMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x37uy; 0xc3uy |]
+
+      test64 Opcode.VPHMINPOSUW
+             (TwoOperands (OprReg R.XMM0,
+                           OprMem (Some R.RBX, None, None, 128<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x41uy; 0x03uy |]
+
+      test64 Opcode.VPHMINPOSUW
+             (TwoOperands (OprReg R.XMM0, OprReg R.XMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x41uy; 0xc3uy |]
+
+      test64 Opcode.VPMAXSB
+             (ThreeOperands (OprReg R.XMM0, OprReg R.XMM3,
+                             OprMem (Some R.RBX, None, None, 128<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x3Cuy; 0x03uy |]
+
+      test64 Opcode.VPMAXSB
+             (ThreeOperands (OprReg R.XMM0, OprReg R.XMM3, OprReg R.XMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x3Cuy; 0xc3uy |]
+
+      test64 Opcode.VPMAXSB
+             (ThreeOperands (OprReg R.YMM0, OprReg R.YMM3,
+                             OprMem (Some R.RBX, None, None, 256<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x3Cuy; 0x03uy |]
+
+      test64 Opcode.VPMAXSB
+             (ThreeOperands (OprReg R.YMM0, OprReg R.YMM3, OprReg R.YMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x3Cuy; 0xc3uy |]
+
+      test64 Opcode.VPMAXSD
+             (ThreeOperands (OprReg R.XMM0, OprReg R.XMM3,
+                             OprMem (Some R.RBX, None, None, 128<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x3Duy; 0x03uy |]
+
+      test64 Opcode.VPMAXSD
+             (ThreeOperands (OprReg R.XMM0, OprReg R.XMM3, OprReg R.XMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x3Duy; 0xc3uy |]
+
+      test64 Opcode.VPMAXSD
+             (ThreeOperands (OprReg R.YMM0, OprReg R.YMM3,
+                             OprMem (Some R.RBX, None, None, 256<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x3Duy; 0x03uy |]
+
+      test64 Opcode.VPMAXSD
+             (ThreeOperands (OprReg R.YMM0, OprReg R.YMM3, OprReg R.YMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x3Duy; 0xc3uy |]
+
+      test64 Opcode.VPMAXUD
+             (ThreeOperands (OprReg R.XMM0, OprReg R.XMM3,
+                             OprMem (Some R.RBX, None, None, 128<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x3Fuy; 0x03uy |]
+
+      test64 Opcode.VPMAXUD
+             (ThreeOperands (OprReg R.XMM0, OprReg R.XMM3, OprReg R.XMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x3Fuy; 0xc3uy |]
+
+      test64 Opcode.VPMAXUD
+             (ThreeOperands (OprReg R.YMM0, OprReg R.YMM3,
+                             OprMem (Some R.RBX, None, None, 256<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x3Fuy; 0x03uy |]
+
+      test64 Opcode.VPMAXUD
+             (ThreeOperands (OprReg R.YMM0, OprReg R.YMM3, OprReg R.YMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x3Fuy; 0xc3uy |]
+
+      test64 Opcode.VPMAXUW
+             (ThreeOperands (OprReg R.XMM0, OprReg R.XMM3,
+                             OprMem (Some R.RBX, None, None, 128<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x3Euy; 0x03uy |]
+
+      test64 Opcode.VPMAXUW
+             (ThreeOperands (OprReg R.XMM0, OprReg R.XMM3, OprReg R.XMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x3Euy; 0xc3uy |]
+
+      test64 Opcode.VPMAXUW
+             (ThreeOperands (OprReg R.YMM0, OprReg R.YMM3,
+                             OprMem (Some R.RBX, None, None, 256<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x3Euy; 0x03uy |]
+
+      test64 Opcode.VPMAXUW
+             (ThreeOperands (OprReg R.YMM0, OprReg R.YMM3, OprReg R.YMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x3Euy; 0xc3uy |]
+
+      test64 Opcode.VPMINSB
+             (ThreeOperands (OprReg R.XMM0, OprReg R.XMM3,
+                             OprMem (Some R.RBX, None, None, 128<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x38uy; 0x03uy |]
+
+      test64 Opcode.VPMINSB
+             (ThreeOperands (OprReg R.XMM0, OprReg R.XMM3, OprReg R.XMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x38uy; 0xc3uy |]
+
+      test64 Opcode.VPMINSB
+             (ThreeOperands (OprReg R.YMM0, OprReg R.YMM3,
+                             OprMem (Some R.RBX, None, None, 256<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x38uy; 0x03uy |]
+
+      test64 Opcode.VPMINSB
+             (ThreeOperands (OprReg R.YMM0, OprReg R.YMM3, OprReg R.YMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x38uy; 0xc3uy |]
+
+      test64 Opcode.VPMINSD
+             (ThreeOperands (OprReg R.XMM0, OprReg R.XMM3,
+                             OprMem (Some R.RBX, None, None, 128<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x39uy; 0x03uy |]
+
+      test64 Opcode.VPMINSD
+             (ThreeOperands (OprReg R.XMM0, OprReg R.XMM3, OprReg R.XMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x39uy; 0xc3uy |]
+
+      test64 Opcode.VPMINSD
+             (ThreeOperands (OprReg R.YMM0, OprReg R.YMM3,
+                             OprMem (Some R.RBX, None, None, 256<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x39uy; 0x03uy |]
+
+      test64 Opcode.VPMINSD
+             (ThreeOperands (OprReg R.YMM0, OprReg R.YMM3, OprReg R.YMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x39uy; 0xc3uy |]
+
+      test64 Opcode.VPMINUW
+             (ThreeOperands (OprReg R.XMM0, OprReg R.XMM3,
+                             OprMem (Some R.RBX, None, None, 128<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x3Auy; 0x03uy |]
+
+      test64 Opcode.VPMINUW
+             (ThreeOperands (OprReg R.XMM0, OprReg R.XMM3, OprReg R.XMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x3Auy; 0xc3uy |]
+
+      test64 Opcode.VPMINUW
+             (ThreeOperands (OprReg R.YMM0, OprReg R.YMM3,
+                             OprMem (Some R.RBX, None, None, 256<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x3Auy; 0x03uy |]
+
+      test64 Opcode.VPMINUW
+             (ThreeOperands (OprReg R.YMM0, OprReg R.YMM3, OprReg R.YMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x3Auy; 0xc3uy |]
+
+      test64 Opcode.VPMOVSXBD
+             (TwoOperands (OprReg R.XMM0,
+                           OprMem (Some R.RBX, None, None, 32<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x21uy; 0x03uy |]
+
+      test64 Opcode.VPMOVSXBD
+             (TwoOperands (OprReg R.XMM0, OprReg R.XMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x21uy; 0xc3uy |]
+
+      test64 Opcode.VPMOVSXBD
+             (TwoOperands (OprReg R.YMM0,
+                           OprMem (Some R.RBX, None, None, 64<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x21uy; 0x03uy |]
+
+      test64 Opcode.VPMOVSXBD
+             (TwoOperands (OprReg R.YMM0, OprReg R.XMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x21uy; 0xc3uy |]
+
+      test64 Opcode.VPMOVSXBQ
+             (TwoOperands (OprReg R.XMM0,
+                           OprMem (Some R.RBX, None, None, 16<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x22uy; 0x03uy |]
+
+      test64 Opcode.VPMOVSXBQ
+             (TwoOperands (OprReg R.XMM0, OprReg R.XMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x22uy; 0xc3uy |]
+
+      test64 Opcode.VPMOVSXBQ
+             (TwoOperands (OprReg R.YMM0,
+                           OprMem (Some R.RBX, None, None, 32<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x22uy; 0x03uy |]
+
+      test64 Opcode.VPMOVSXBQ
+             (TwoOperands (OprReg R.YMM0, OprReg R.XMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x22uy; 0xc3uy |]
+
+      test64 Opcode.VPMOVSXBW
+             (TwoOperands (OprReg R.XMM0,
+                           OprMem (Some R.RBX, None, None, 64<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x20uy; 0x03uy |]
+
+      test64 Opcode.VPMOVSXBW
+             (TwoOperands (OprReg R.XMM0, OprReg R.XMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x20uy; 0xc3uy |]
+
+      test64 Opcode.VPMOVSXBW
+             (TwoOperands (OprReg R.YMM0,
+                           OprMem (Some R.RBX, None, None, 128<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x20uy; 0x03uy |]
+
+      test64 Opcode.VPMOVSXBW
+             (TwoOperands (OprReg R.YMM0, OprReg R.XMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x20uy; 0xc3uy |]
+
+      test64 Opcode.VPMOVSXDQ
+             (TwoOperands (OprReg R.XMM0,
+                           OprMem (Some R.RBX, None, None, 64<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x25uy; 0x03uy |]
+
+      test64 Opcode.VPMOVSXDQ
+             (TwoOperands (OprReg R.XMM0, OprReg R.XMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x25uy; 0xc3uy |]
+
+      test64 Opcode.VPMOVSXDQ
+             (TwoOperands (OprReg R.YMM0,
+                           OprMem (Some R.RBX, None, None, 128<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x25uy; 0x03uy |]
+
+      test64 Opcode.VPMOVSXDQ
+             (TwoOperands (OprReg R.YMM0, OprReg R.XMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x25uy; 0xc3uy |]
+
+      test64 Opcode.VPMOVSXWD
+             (TwoOperands (OprReg R.XMM0,
+                           OprMem (Some R.RBX, None, None, 64<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x23uy; 0x03uy |]
+
+      test64 Opcode.VPMOVSXWD
+             (TwoOperands (OprReg R.XMM0, OprReg R.XMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x23uy; 0xc3uy |]
+
+      test64 Opcode.VPMOVSXWD
+             (TwoOperands (OprReg R.YMM0,
+                           OprMem (Some R.RBX, None, None, 128<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x23uy; 0x03uy |]
+
+      test64 Opcode.VPMOVSXWD
+             (TwoOperands (OprReg R.YMM0, OprReg R.XMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x23uy; 0xc3uy |]
+
+      test64 Opcode.VPMOVSXWQ
+             (TwoOperands (OprReg R.XMM0,
+                           OprMem (Some R.RBX, None, None, 32<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x24uy; 0x03uy |]
+
+      test64 Opcode.VPMOVSXWQ
+             (TwoOperands (OprReg R.XMM0, OprReg R.XMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x24uy; 0xc3uy |]
+
+      test64 Opcode.VPMOVSXWQ
+             (TwoOperands (OprReg R.YMM0,
+                           OprMem (Some R.RBX, None, None, 64<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x24uy; 0x03uy |]
+
+      test64 Opcode.VPMOVSXWQ
+             (TwoOperands (OprReg R.YMM0, OprReg R.XMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x24uy; 0xc3uy |]
+
+      test64 Opcode.VPMOVZXBD
+             (TwoOperands (OprReg R.XMM0,
+                           OprMem (Some R.RBX, None, None, 32<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x31uy; 0x03uy |]
+
+      test64 Opcode.VPMOVZXBD
+             (TwoOperands (OprReg R.XMM0, OprReg R.XMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x31uy; 0xc3uy |]
+
+      test64 Opcode.VPMOVZXBD
+             (TwoOperands (OprReg R.YMM0,
+                           OprMem (Some R.RBX, None, None, 64<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x31uy; 0x03uy |]
+
+      test64 Opcode.VPMOVZXBD
+             (TwoOperands (OprReg R.YMM0, OprReg R.XMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x31uy; 0xc3uy |]
+
+      test64 Opcode.VPMOVZXBQ
+             (TwoOperands (OprReg R.XMM0,
+                           OprMem (Some R.RBX, None, None, 16<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x32uy; 0x03uy |]
+
+      test64 Opcode.VPMOVZXBQ
+             (TwoOperands (OprReg R.XMM0, OprReg R.XMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x32uy; 0xc3uy |]
+
+      test64 Opcode.VPMOVZXBQ
+             (TwoOperands (OprReg R.YMM0,
+                           OprMem (Some R.RBX, None, None, 32<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x32uy; 0x03uy |]
+
+      test64 Opcode.VPMOVZXBQ
+             (TwoOperands (OprReg R.YMM0, OprReg R.XMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x32uy; 0xc3uy |]
+
+      test64 Opcode.VPMOVZXBW
+             (TwoOperands (OprReg R.XMM0,
+                           OprMem (Some R.RBX, None, None, 64<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x30uy; 0x03uy |]
+
+      test64 Opcode.VPMOVZXBW
+             (TwoOperands (OprReg R.XMM0, OprReg R.XMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x30uy; 0xc3uy |]
+
+      test64 Opcode.VPMOVZXBW
+             (TwoOperands (OprReg R.YMM0,
+                           OprMem (Some R.RBX, None, None, 128<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x30uy; 0x03uy |]
+
+      test64 Opcode.VPMOVZXBW
+             (TwoOperands (OprReg R.YMM0, OprReg R.XMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x30uy; 0xc3uy |]
+
+      test64 Opcode.VPMOVZXDQ
+             (TwoOperands (OprReg R.XMM0,
+                           OprMem (Some R.RBX, None, None, 64<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x35uy; 0x03uy |]
+
+      test64 Opcode.VPMOVZXDQ
+             (TwoOperands (OprReg R.XMM0, OprReg R.XMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x35uy; 0xc3uy |]
+
+      test64 Opcode.VPMOVZXDQ
+             (TwoOperands (OprReg R.YMM0,
+                           OprMem (Some R.RBX, None, None, 128<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x35uy; 0x03uy |]
+
+      test64 Opcode.VPMOVZXDQ
+             (TwoOperands (OprReg R.YMM0, OprReg R.XMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x35uy; 0xc3uy |]
+
+      test64 Opcode.VPMOVZXWD
+             (TwoOperands (OprReg R.XMM0,
+                           OprMem (Some R.RBX, None, None, 64<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x33uy; 0x03uy |]
+
+      test64 Opcode.VPMOVZXWD
+             (TwoOperands (OprReg R.XMM0, OprReg R.XMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x33uy; 0xc3uy |]
+
+      test64 Opcode.VPMOVZXWD
+             (TwoOperands (OprReg R.YMM0,
+                           OprMem (Some R.RBX, None, None, 128<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x33uy; 0x03uy |]
+
+      test64 Opcode.VPMOVZXWD
+             (TwoOperands (OprReg R.YMM0, OprReg R.XMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x33uy; 0xc3uy |]
+
+      test64 Opcode.VPMOVZXWQ
+             (TwoOperands (OprReg R.XMM0,
+                           OprMem (Some R.RBX, None, None, 32<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x34uy; 0x03uy |]
+
+      test64 Opcode.VPMOVZXWQ
+             (TwoOperands (OprReg R.XMM0, OprReg R.XMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x34uy; 0xc3uy |]
+
+      test64 Opcode.VPMOVZXWQ
+             (TwoOperands (OprReg R.YMM0,
+                           OprMem (Some R.RBX, None, None, 64<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x34uy; 0x03uy |]
+
+      test64 Opcode.VPMOVZXWQ
+             (TwoOperands (OprReg R.YMM0, OprReg R.XMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x34uy; 0xc3uy |]
+
+      test64 Opcode.VPMULDQ
+             (ThreeOperands (OprReg R.XMM0, OprReg R.XMM3,
+                             OprMem (Some R.RBX, None, None, 128<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x28uy; 0x03uy |]
+
+      test64 Opcode.VPMULDQ
+             (ThreeOperands (OprReg R.XMM0, OprReg R.XMM3, OprReg R.XMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x28uy; 0xc3uy |]
+
+      test64 Opcode.VPMULDQ
+             (ThreeOperands (OprReg R.YMM0, OprReg R.YMM3,
+                             OprMem (Some R.RBX, None, None, 256<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x28uy; 0x03uy |]
+
+      test64 Opcode.VPMULDQ
+             (ThreeOperands (OprReg R.YMM0, OprReg R.YMM3, OprReg R.YMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x28uy; 0xc3uy |]
+
+      test64 Opcode.VPMULLD
+             (ThreeOperands (OprReg R.XMM0, OprReg R.XMM3,
+                             OprMem (Some R.RBX, None, None, 128<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x40uy; 0x03uy |]
+
+      test64 Opcode.VPMULLD
+             (ThreeOperands (OprReg R.XMM0, OprReg R.XMM3, OprReg R.XMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x61uy; 0x40uy; 0xc3uy |]
+
+      test64 Opcode.VPMULLD
+             (ThreeOperands (OprReg R.YMM0, OprReg R.YMM3,
+                             OprMem (Some R.RBX, None, None, 256<rt>))) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x40uy; 0x03uy |]
+
+      test64 Opcode.VPMULLD
+             (ThreeOperands (OprReg R.YMM0, OprReg R.YMM3, OprReg R.YMM3)) 5u
+             [| 0xC4uy; 0xE2uy; 0x65uy; 0x40uy; 0xc3uy |]
+
+  /// Exception Test
+  [<TestClass>]
+  type ExceptionTestClass () =
+    [<TestMethod>]
+    [<ExpectedException(typedefof<Intel.Helper.ParsingFailureException>)>]
+    member __.``Size cond ParsingFailure Test`` () =
+      test64 Opcode.AAA NoOperand 1ul [| 0x37uy |]
+
+      test64 Opcode.AAS NoOperand 1ul [| 0x3Fuy |]
+
+      test64 Opcode.JMPFar
+             (OneOperand (OprDirAddr (Absolute (0x90s, 0x78563412UL, 32<rt>))))
+             7ul
+             [| 0xeauy; 0x12uy; 0x34uy; 0x56uy; 0x78uy; 0x90uy; 0x00uy |]
+
+      test64 Opcode.CALLFar
+             (OneOperand (OprDirAddr (Absolute (0x10s, 0x32547698UL, 32<rt>))))
+             7ul
+             [| 0x9auy; 0x98uy; 0x76uy; 0x54uy; 0x32uy; 0x10uy; 0x00uy |]
+
+      test64 Opcode.LES
+             (TwoOperands (OprReg R.ECX,
+                           OprMem (Some R.EDI, None, None, 48<rt>))) 2ul
+             [| 0xc4uy; 0x0fuy |]
+
+      test64 Opcode.LDS
+             (TwoOperands (OprReg R.EDX,
+                           OprMem (Some R.ECX, None, None, 48<rt>))) 2ul
+             [| 0xc5uy; 0x11uy |]
+
   /// IR Test
   [<TestClass>]
   type TestClass () =
@@ -235,21 +1473,24 @@ module Intel =
     member __.``Intel IL Test`` () =
       let isa = ISA.Init Arch.IntelX86 Endian.Little
       let hdl = BinHandler.Init (isa)
-      Assert.AreEqual (0, hdl.BinReader.Length ())
+      Assert.AreEqual (0, hdl.FileInfo.BinReader.Length ())
 
 module ARMv7 =
   open B2R2.FrontEnd.ARM32
 
-  let private test arch endian cond op (q: Qualifier option) simd oprs bytes =
+  let private test arch endian cond op w (q: Qualifier option) simd oprs bytes =
     let reader = BinReader.Init (bytes, endian)
-    let ins = Parser.parse reader arch ArchOperationMode.ARMMode 0UL 0 0uy
+    let ctxt = new ParsingContext (ArchOperationMode.ARMMode)
+    let ins = Parser.parse reader ctxt arch 0UL 0
     let cond' = ins.Info.Condition
     let opcode' = ins.Info.Opcode
-    let oprs' = ins.Info.Operands
+    let wback' = ins.Info.WriteBack
     let q' = ins.Info.Qualifier
     let simd' = ins.Info.SIMDTyp
+    let oprs' = ins.Info.Operands
     Assert.AreEqual (cond', cond)
     Assert.AreEqual (opcode', op)
+    Assert.AreEqual (wback', w)
     Assert.AreEqual (q', q)
     Assert.AreEqual (simd', simd)
     Assert.AreEqual (oprs', oprs)
@@ -261,16 +1502,16 @@ module ARMv7 =
   type BranchClass () =
     [<TestMethod>]
     member __.``[ARMv7] Branch Parse Test`` () =
-      test32 (Some Condition.AL) Op.B None None
-             (OneOperand (Memory (LiteralMode 1020L)))
+      test32 (Some Condition.AL) Op.B None None None
+             (OneOperand (OprMemory (LiteralMode 1020L)))
              [| 0xeauy; 0x00uy; 0x00uy; 0xffuy |]
 
-      test32 None Op.BLX None None
-             (OneOperand (Memory (LiteralMode 64L)))
+      test32 None Op.BLX None None None
+             (OneOperand (OprMemory (LiteralMode 64L)))
              [| 0xfauy; 0x00uy; 0x00uy; 0x10uy |]
 
-      test32 (Some Condition.AL) Op.BX None None
-             (OneOperand (Register R.R0))
+      test32 (Some Condition.AL) Op.BX None None None
+             (OneOperand (OprReg R.R0))
              [| 0xe1uy; 0x2fuy; 0xffuy; 0x10uy |]
 
   /// A4.4 Data-processing instructions
@@ -279,164 +1520,164 @@ module ARMv7 =
     /// A4.4.1 Standard data-processing instructions
     [<TestMethod>]
     member __.``[ARMv7] Standard data-processing Parse Test`` () =
-      test32 (Some Condition.AL) Op.ADD None None
-             (FourOperands (Register R.R2, Register R.R0, Register R.LR,
-                            RegShift (SRTypeASR, R.R8)))
+      test32 (Some Condition.AL) Op.ADD None None None
+             (FourOperands (OprReg R.R2, OprReg R.R0, OprReg R.LR,
+                            OprRegShift (SRTypeASR, R.R8)))
              [| 0xe0uy; 0x80uy; 0x28uy; 0x5euy |]
 
-      test32 (Some Condition.AL) Op.ADD None None (* It used to be ADR *)
-             (ThreeOperands (Register R.R0, Register R.PC, Immediate 960L))
+      test32 (Some Condition.AL) Op.ADD None None None (* It used to be ADR *)
+             (ThreeOperands (OprReg R.R0, OprReg R.PC, OprImm 960L))
              [| 0xe2uy; 0x8fuy; 0x0fuy; 0xf0uy |]
 
-      test32 (Some Condition.AL) Op.AND None None
-             (FourOperands (Register R.R0, Register R.R0, Register R.R0,
-                            Shift (SRTypeLSL, Imm 0u)))
+      test32 (Some Condition.AL) Op.AND None None None
+             (FourOperands (OprReg R.R0, OprReg R.R0, OprReg R.R0,
+                            OprShift (SRTypeLSL, Imm 0u)))
              [| 0xe0uy; 0x00uy; 0x00uy; 0x00uy |]
 
-      test32 (Some Condition.AL) Op.CMP None None
-             (ThreeOperands (Register R.IP, Register R.R2,
-                             Shift (SRTypeROR, Imm 4u)))
+      test32 (Some Condition.AL) Op.CMP None None None
+             (ThreeOperands (OprReg R.IP, OprReg R.R2,
+                             OprShift (SRTypeROR, Imm 4u)))
              [| 0xe1uy; 0x5cuy; 0x02uy; 0x62uy |]
 
-      test32 (Some Condition.AL) Op.EORS None None
-             (ThreeOperands (Register R.R1, Register R.R0, Immediate 252L))
+      test32 (Some Condition.AL) Op.EORS None None None
+             (ThreeOperands (OprReg R.R1, OprReg R.R0, OprImm 252L))
              [| 0xe2uy; 0x30uy; 0x10uy; 0xfcuy |]
 
-      test32 (Some Condition.AL) Op.MOVW None None
-             (TwoOperands (Register R.SL, Immediate 15L))
+      test32 (Some Condition.AL) Op.MOVW None None None
+             (TwoOperands (OprReg R.SL, OprImm 15L))
              [| 0xe3uy; 0x00uy; 0xa0uy; 0x0fuy |]
 
-      test32 (Some Condition.AL) Op.MOVS None None
-             (TwoOperands (Register R.R8, Register R.IP))
+      test32 (Some Condition.AL) Op.MOVS None None None
+             (TwoOperands (OprReg R.R8, OprReg R.IP))
              [| 0xe1uy; 0xb0uy; 0x80uy; 0x0cuy |]
 
-      test32 (Some Condition.AL) Op.MVN None None
-             (ThreeOperands (Register R.R0, Register R.SB,
-                             RegShift (SRTypeLSL, R.R8)))
+      test32 (Some Condition.AL) Op.MVN None None None
+             (ThreeOperands (OprReg R.R0, OprReg R.SB,
+                             OprRegShift (SRTypeLSL, R.R8)))
              [| 0xe1uy; 0xe0uy; 0x08uy; 0x19uy |]
 
-      test32 (Some Condition.AL) Op.TEQ None None
-             (ThreeOperands (Register R.SL, Register R.R6,
-                             RegShift (SRTypeLSL, R.IP)))
+      test32 (Some Condition.AL) Op.TEQ None None None
+             (ThreeOperands (OprReg R.SL, OprReg R.R6,
+                             OprRegShift (SRTypeLSL, R.IP)))
              [| 0xe1uy; 0x3auy; 0x0cuy; 0x16uy |]
 
-      test32 (Some Condition.AL) Op.TST None None
-             (TwoOperands (Register R.R3, Immediate 4L))
+      test32 (Some Condition.AL) Op.TST None None None
+             (TwoOperands (OprReg R.R3, OprImm 4L))
              [| 0xe3uy; 0x13uy; 0x00uy; 0x04uy |]
 
     /// A4.4.2 Shift instructions
     [<TestMethod>]
     member __.``[ARMv7] Shift Parse Test`` () =
-      test32 (Some Condition.AL) Op.LSLS None None
-             (ThreeOperands (Register R.R0, Register R.R3, Register R.R1))
+      test32 (Some Condition.AL) Op.LSLS None None None
+             (ThreeOperands (OprReg R.R0, OprReg R.R3, OprReg R.R1))
              [| 0xe1uy; 0xb0uy; 0x01uy; 0x13uy |]
 
-      test32 (Some Condition.AL) Op.ROR None None
-             (ThreeOperands (Register R.R0, Register R.R5, Immediate 28L))
+      test32 (Some Condition.AL) Op.ROR None None None
+             (ThreeOperands (OprReg R.R0, OprReg R.R5, OprImm 28L))
              [| 0xe1uy; 0xa0uy; 0x0euy; 0x65uy |]
 
     /// A4.4.3 Multiply instructions
     [<TestMethod>]
     member __.``[ARMv7] Multiply Parse Test`` () =
-      test32 (Some Condition.AL) Op.MULS None None
-             (ThreeOperands (Register R.R0, Register R.SB, Register R.IP))
+      test32 (Some Condition.AL) Op.MULS None None None
+             (ThreeOperands (OprReg R.R0, OprReg R.SB, OprReg R.IP))
              [| 0xe0uy; 0x10uy; 0x0cuy; 0x99uy |]
 
-      test32 (Some Condition.AL) Op.SMLABT None None
-             (FourOperands (Register R.R0, Register R.R5, Register R.SL,
-                            Register R.IP))
+      test32 (Some Condition.AL) Op.SMLABT None None None
+             (FourOperands (OprReg R.R0, OprReg R.R5, OprReg R.SL,
+                            OprReg R.IP))
              [| 0xe1uy; 0x00uy; 0xcauy; 0xc5uy |]
 
-      test32 (Some Condition.AL) Op.SMLALTT None None
-             (FourOperands (Register R.R1, Register R.R0, Register R.R8,
-                            Register R.R2))
+      test32 (Some Condition.AL) Op.SMLALTT None None None
+             (FourOperands (OprReg R.R1, OprReg R.R0, OprReg R.R8,
+                            OprReg R.R2))
              [| 0xe1uy; 0x40uy; 0x12uy; 0xe8uy |]
 
-      test32 (Some Condition.AL) Op.SMUAD None None
-             (ThreeOperands (Register R.R0, Register R.R2, Register R.R1))
+      test32 (Some Condition.AL) Op.SMUAD None None None
+             (ThreeOperands (OprReg R.R0, OprReg R.R2, OprReg R.R1))
              [| 0xe7uy; 0x00uy; 0xf1uy; 0x12uy |]
 
-      test32 (Some Condition.AL) Op.SMULBB None None
-             (ThreeOperands (Register R.R0, Register R.IP, Register R.LR))
+      test32 (Some Condition.AL) Op.SMULBB None None None
+             (ThreeOperands (OprReg R.R0, OprReg R.IP, OprReg R.LR))
              [| 0xe1uy; 0x60uy; 0x0euy; 0x8cuy |]
 
     /// A4.4.4 Saturating instructions
     [<TestMethod>]
     member __.``[ARMv7] Saturating Parse Test`` () =
-      test32 (Some Condition.AL) Op.SSAT None None
-             (FourOperands (Register R.R0, Immediate 29L, Register R.R2,
-                            Shift (SRTypeASR, Imm 7u)))
+      test32 (Some Condition.AL) Op.SSAT None None None
+             (FourOperands (OprReg R.R0, OprImm 29L, OprReg R.R2,
+                            OprShift (SRTypeASR, Imm 7u)))
              [| 0xe6uy; 0xbcuy; 0x03uy; 0xd2uy |]
 
     /// A4.4.5 Saturating addition and subtraction instructions
     [<TestMethod>]
     member __.``[ARMv7] Saturating addition and subtraction Parse Test`` () =
-      test32 (Some Condition.AL) Op.QADD None None
-             (ThreeOperands (Register R.R1, Register R.R0, Register R.R2))
+      test32 (Some Condition.AL) Op.QADD None None None
+             (ThreeOperands (OprReg R.R1, OprReg R.R0, OprReg R.R2))
              [| 0xe1uy; 0x00uy; 0x10uy; 0x52uy |]
 
     /// A4.4.6 Packing and unpacking instructions
     [<TestMethod>]
     member __.``[ARMv7] Packing and unpacking Parse Test`` () =
-      test32 (Some Condition.AL) Op.PKHTB None None
-             (FourOperands (Register R.R1, Register R.R0, Register R.R8,
-                            Shift (SRTypeASR, Imm 21u)))
+      test32 (Some Condition.AL) Op.PKHTB None None None
+             (FourOperands (OprReg R.R1, OprReg R.R0, OprReg R.R8,
+                            OprShift (SRTypeASR, Imm 21u)))
              [| 0xe6uy; 0x80uy; 0x1auy; 0xd8uy |]
 
-      test32 (Some Condition.AL) Op.SXTAB None None
-             (FourOperands (Register R.R1, Register R.R0, Register R.R0,
-                            Shift (SRTypeROR, Imm 24u)))
+      test32 (Some Condition.AL) Op.SXTAB None None None
+             (FourOperands (OprReg R.R1, OprReg R.R0, OprReg R.R0,
+                            OprShift (SRTypeROR, Imm 24u)))
              [| 0xe6uy; 0xa0uy; 0x1cuy; 0x70uy |]
 
-      test32 (Some Condition.AL) Op.SXTH None None
-             (ThreeOperands (Register R.R0, Register R.R3,
-                             Shift (SRTypeROR, Imm 0u)))
+      test32 (Some Condition.AL) Op.SXTH None None None
+             (ThreeOperands (OprReg R.R0, OprReg R.R3,
+                             OprShift (SRTypeROR, Imm 0u)))
              [| 0xe6uy; 0xbfuy; 0x00uy; 0x73uy |]
 
     /// A4.4.7 Parallel addition and subtraction instructions
     [<TestMethod>]
     member __.``[ARMv7] Parallel addition and subtraction Parse Test`` () =
-      test32 (Some Condition.AL) Op.SASX None None
-             (ThreeOperands (Register R.R1, Register R.R0, Register R.R7))
+      test32 (Some Condition.AL) Op.SASX None None None
+             (ThreeOperands (OprReg R.R1, OprReg R.R0, OprReg R.R7))
              [| 0xe6uy; 0x10uy; 0x1fuy; 0x37uy |]
 
 
     /// A4.4.9 Miscellaneous data-processing instructions
     [<TestMethod>]
     member __.``[ARMv7] Miscellaneous data-processing Parse Test`` () =
-      test32 (Some Condition.AL) Op.BFC None None
-             (ThreeOperands (Register R.R0, Immediate 3L, Immediate 29L))
+      test32 (Some Condition.AL) Op.BFC None None None
+             (ThreeOperands (OprReg R.R0, OprImm 3L, OprImm 29L))
              [| 0xe7uy; 0xdfuy; 0x01uy; 0x9fuy |]
 
-      test32 (Some Condition.AL) Op.BFI None None
-             (FourOperands (Register R.R0, Register R.R0, Immediate 5L,
-                            Immediate 6L))
+      test32 (Some Condition.AL) Op.BFI None None None
+             (FourOperands (OprReg R.R0, OprReg R.R0, OprImm 5L,
+                            OprImm 6L))
              [| 0xe7uy; 0xcauy; 0x02uy; 0x90uy |]
 
-      test32 (Some Condition.AL) Op.CLZ None None
-             (TwoOperands (Register R.R0, Register R.R1))
+      test32 (Some Condition.AL) Op.CLZ None None None
+             (TwoOperands (OprReg R.R0, OprReg R.R1))
              [| 0xe1uy; 0x6fuy; 0x0fuy; 0x11uy |]
 
-      test32 (Some Condition.AL) Op.SBFX None None
-             (FourOperands (Register R.R0, Register R.R2, Immediate 28L,
-                            Immediate 3L))
+      test32 (Some Condition.AL) Op.SBFX None None None
+             (FourOperands (OprReg R.R0, OprReg R.R2, OprImm 28L,
+                            OprImm 3L))
              [| 0xe7uy; 0xa2uy; 0x0euy; 0x52uy |]
 
   /// A4.5 Status register access instructions
   [<TestClass>]
-  type StatusRegisterAccessClass () =
+  type StatusOprRegAccessClass () =
     [<TestMethod>]
     member __.``[ARMv7] Status register access Parse Test`` () =
-      test32 (Some Condition.AL) Op.MSR None None
-             (TwoOperands (SpecReg (R.APSR, Some PSRnzcvqg), Immediate 240L))
+      test32 (Some Condition.AL) Op.MSR None None None
+             (TwoOperands (OprSpecReg (R.APSR, Some PSRnzcvqg), OprImm 240L))
              [| 0xe3uy; 0x2cuy; 0xf0uy; 0xf0uy |]
 
-      test32 (Some Condition.AL) Op.MSR None None
-             (TwoOperands (SpecReg (R.APSR, Some PSRnzcvqg), Register R.R2))
+      test32 (Some Condition.AL) Op.MSR None None None
+             (TwoOperands (OprSpecReg (R.APSR, Some PSRnzcvqg), OprReg R.R2))
              [| 0xe1uy; 0x2cuy; 0xf0uy; 0x02uy |]
 
-      test32 None Op.CPSIE None None
-             (TwoOperands (Iflag AF, Immediate 2L))
+      test32 None Op.CPSIE None None None
+             (TwoOperands (OprIflag AF, OprImm 2L))
              [| 0xf1uy; 0x0auy; 0x01uy; 0x42uy |]
 
   /// A4.6 Load/store instructions
@@ -444,88 +1685,88 @@ module ARMv7 =
   type LoadStoreClass () =
     [<TestMethod>]
     member __.``[ARMv7] Load/store (Lord) Parse Test`` () =
-      test32 (Some Condition.AL) Op.LDR None None
-             (TwoOperands (Register R.R0,
-                           Memory (LiteralMode 15L)))
+      test32 (Some Condition.AL) Op.LDR None None None
+             (TwoOperands (OprReg R.R0,
+                           OprMemory (LiteralMode 15L)))
              [| 0xe5uy; 0x9fuy; 0x00uy; 0x0fuy |]
 
-      test32 (Some Condition.AL) Op.LDRH None None
-             (TwoOperands (Register R.R1,
-                           Memory (PostIdxMode
+      test32 (Some Condition.AL) Op.LDRH (Some true) None None
+             (TwoOperands (OprReg R.R1,
+                           OprMemory (PostIdxMode
                                      (RegOffset (R.R0, Some Plus,
                                                  R.IP, None)))))
              [| 0xe0uy; 0x90uy; 0x10uy; 0xbcuy |]
 
-      test32 (Some Condition.AL) Op.LDRB None None
-             (TwoOperands (Register R.R1,
-                           Memory (OffsetMode
+      test32 (Some Condition.AL) Op.LDRB (Some false) None None
+             (TwoOperands (OprReg R.R1,
+                           OprMemory (OffsetMode
                                     (RegOffset (R.R0, Some Minus, R.R2,
                                       Some (SRTypeASR, Imm 1u))))))
              [| 0xe7uy; 0x50uy; 0x10uy; 0xc2uy |]
 
-      test32 (Some Condition.AL) Op.LDRSB None None
-             (TwoOperands (Register R.R1,
-                           Memory (PreIdxMode
+      test32 (Some Condition.AL) Op.LDRSB (Some true) None None
+             (TwoOperands (OprReg R.R1,
+                           OprMemory (PreIdxMode
                                     (ImmOffset (R.R0, Some Minus, Some 195L)))))
              [| 0xe1uy; 0x70uy; 0x1cuy; 0xd3uy |]
 
     [<TestMethod>]
     member __.``[ARMv7] Load/store (Store) Parse Test`` () =
-      test32 (Some Condition.AL) Op.STR None None
-             (TwoOperands (Register R.R1,
-                           Memory (OffsetMode
+      test32 (Some Condition.AL) Op.STR (Some false) None None
+             (TwoOperands (OprReg R.R1,
+                           OprMemory (OffsetMode
                                     (ImmOffset (R.R0, Some Minus, Some 243L)))))
              [| 0xe5uy; 0x00uy; 0x10uy; 0xf3uy |]
 
-      test32 (Some Condition.AL) Op.STRB None None
-             (TwoOperands (Register R.R1,
-                           Memory (PostIdxMode
+      test32 (Some Condition.AL) Op.STRB (Some true) None None
+             (TwoOperands (OprReg R.R1,
+                           OprMemory (PostIdxMode
                                      (RegOffset (R.R0, Some Minus, R.IP,
                                         Some (SRTypeLSR,Imm 4u))))))
              [| 0xe6uy; 0x40uy; 0x12uy; 0x2cuy |]
 
-      test32 (Some Condition.AL) Op.STRD None None
-             (ThreeOperands (Register R.IP, Register R.SP,
-                             Memory (PreIdxMode
+      test32 (Some Condition.AL) Op.STRD (Some true) None None
+             (ThreeOperands (OprReg R.IP, OprReg R.SP,
+                             OprMemory (PreIdxMode
                                       (RegOffset (R.R0, Some Plus,
                                                   R.R8, None)))))
              [| 0xe1uy; 0xa0uy; 0xc0uy; 0xf8uy |]
 
     [<TestMethod>]
     member __.``[ARMv7] Load/store (Load unprivileged) Parse Test`` () =
-      test32 (Some Condition.AL) Op.LDRSHT None None
-             (TwoOperands (Register R.LR,
-                           Memory (PostIdxMode
+      test32 (Some Condition.AL) Op.LDRSHT None None None
+             (TwoOperands (OprReg R.LR,
+                           OprMemory (PostIdxMode
                                      (ImmOffset (R.R0, Some Minus, Some 14L)))))
              [| 0xe0uy; 0x70uy; 0xe0uy; 0xfeuy |]
 
     [<TestMethod>]
     member __.``[ARMv7] Load/store (Store unprivileged) Parse Test`` () =
-      test32 (Some Condition.AL) Op.STRT None None
-             (TwoOperands (Register R.R1,
-                           Memory (PostIdxMode
+      test32 (Some Condition.AL) Op.STRT None None None
+             (TwoOperands (OprReg R.R1,
+                           OprMemory (PostIdxMode
                                      (ImmOffset (R.R0, Some Plus, Some 15L)))))
              [| 0xe4uy; 0xa0uy; 0x10uy; 0x0fuy |]
 
-      test32 (Some Condition.AL) Op.STRHT None None
-             (TwoOperands (Register R.R1,
-                           Memory (PostIdxMode
+      test32 (Some Condition.AL) Op.STRHT None None None
+             (TwoOperands (OprReg R.R1,
+                           OprMemory (PostIdxMode
                                      (RegOffset (R.R0, Some Minus,
                                                  R.R4, None)))))
              [| 0xe0uy; 0x20uy; 0x10uy; 0xb4uy |]
 
     [<TestMethod>]
     member __.``[ARMv7] Load/store (Load-Exclusive) Parse Test`` () =
-      test32 (Some Condition.AL) Op.LDREX None None
-             (TwoOperands (Register R.LR,
-                           Memory (OffsetMode (ImmOffset (R.R0, None, None)))))
+      test32 (Some Condition.AL) Op.LDREX None None None
+             (TwoOperands (OprReg R.LR,
+                           OprMemory (OffsetMode (ImmOffset (R.R0, None, None)))))
              [| 0xe1uy; 0x90uy; 0xefuy; 0x9fuy |]
 
     [<TestMethod>]
     member __.``[ARMv7] Load/store (Store-Exclusive) Parse Test`` () =
-      test32 (Some Condition.AL) Op.STREXD None None
-             (FourOperands (Register R.R1, Register R.R2, Register R.R3,
-                            Memory (OffsetMode (ImmOffset (R.R0, None, None)))))
+      test32 (Some Condition.AL) Op.STREXD None None None
+             (FourOperands (OprReg R.R1, OprReg R.R2, OprReg R.R3,
+                            OprMemory (OffsetMode (ImmOffset (R.R0, None, None)))))
              [| 0xe1uy; 0xa0uy; 0x1fuy; 0x92uy |]
 
   /// A4.7 Load/store multiple instructions
@@ -533,21 +1774,26 @@ module ARMv7 =
   type LoadStoreMultipleClass () =
     [<TestMethod>]
     member __.``[ARMv7] Load/store multiple Parse Test`` () =
-      test32 (Some Condition.AL) Op.LDMDA None None
-             (TwoOperands (Register R.RegisterWR0F,
-                           RegList [ R.R2; R.R3; R.R8; R.SB; R.SL; R.FP ]))
+      test32 (Some Condition.AL) Op.LDMDA (Some false) None None
+             (TwoOperands (OprReg R.R0,
+                           OprRegList [ R.R2; R.R3; R.R8; R.SB; R.SL; R.FP ]))
              [| 0xe8uy; 0x10uy; 0x0fuy; 0x0cuy |]
 
-      test32 (Some Condition.AL) Op.POP None None
-             (OneOperand (RegList [ R.R0; R.R1; R.R2; R.R3 ]))
+      test32 (Some Condition.AL) Op.LDMDA (Some true) None None
+             (TwoOperands (OprReg R.R0,
+                           OprRegList [ R.R2; R.R3; R.R8; R.SB; R.SL; R.FP ]))
+             [| 0xe8uy; 0x30uy; 0x0fuy; 0x0cuy |]
+
+      test32 (Some Condition.AL) Op.POP None None None
+             (OneOperand (OprRegList [ R.R0; R.R1; R.R2; R.R3 ]))
              [| 0xe8uy; 0xbduy; 0x00uy; 0x0fuy |]
 
-      test32 (Some Condition.AL) Op.PUSH None None
-             (OneOperand (Register R.R0))
+      test32 (Some Condition.AL) Op.PUSH None None None
+             (OneOperand (OprReg R.R0))
              [| 0xe5uy; 0x2duy; 0x00uy; 0x04uy |]
 
-      test32 (Some Condition.AL) Op.STMIA None None
-             (TwoOperands (Register R.SB, RegList [ R.SP; R.LR; R.PC ]))
+      test32 (Some Condition.AL) Op.STMIA None None None
+             (TwoOperands (OprReg R.SB, OprRegList [ R.SP; R.LR; R.PC ]))
              [| 0xe8uy; 0xc9uy; 0xe0uy; 0x00uy |]
 
   /// A4.8 Miscellaneous instructions
@@ -555,38 +1801,38 @@ module ARMv7 =
   type MiscellaneousClass () =
     [<TestMethod>]
     member __.``[ARMv7] Miscellaneous Parse Test`` () =
-      test32 None Op.CLREX None None (NoOperand)
+      test32 None Op.CLREX None None None (NoOperand)
              [| 0xf5uy; 0x7fuy; 0xf0uy; 0x1fuy |]
 
-      test32 None Op.DMB None None
-             (OneOperand (Option SY))
+      test32 None Op.DMB None None None
+             (OneOperand (OprOption SY))
              [| 0xf5uy; 0x7fuy; 0xf0uy; 0x5fuy |]
 
-      test32 (Some Condition.AL) Op.NOP None None NoOperand
+      test32 (Some Condition.AL) Op.NOP None None None NoOperand
              [| 0xe3uy; 0x20uy; 0xf0uy; 0x00uy |]
 
-      test32 None Op.PLD None None
-             (OneOperand (Memory (LiteralMode -3840L)))
+      test32 None Op.PLD None None None
+             (OneOperand (OprMemory (LiteralMode -3840L)))
              [| 0xf5uy; 0x5fuy; 0xffuy; 0x00uy |]
 
-      test32 None Op.PLDW None None
-             (OneOperand (Memory (OffsetMode
+      test32 None Op.PLDW None None None
+             (OneOperand (OprMemory (OffsetMode
                                     (RegOffset (R.R0, Some Plus, R.R0,
                                        Some (SRTypeASR, Imm 3u))))))
              [| 0xf7uy; 0x90uy; 0xf1uy; 0xc0uy |]
 
-      test32 None Op.PLI None None
-             (OneOperand (Memory (OffsetMode
+      test32 None Op.PLI None None None
+             (OneOperand (OprMemory (OffsetMode
                                     (ImmOffset (R.R0, Some Minus, Some 240L)))))
              [| 0xf4uy; 0x50uy; 0xf0uy; 0xf0uy |]
 
-      test32 None Op.SETEND None None
-             (OneOperand (Endian Endian.Big))
+      test32 None Op.SETEND None None None
+             (OneOperand (OprEndian Endian.Big))
              [| 0xf1uy; 0x01uy; 0x02uy; 0x00uy |]
 
-      test32 (Some Condition.AL) Op.SWP None None
-             (ThreeOperands (Register R.IP, Register R.LR,
-                             Memory (OffsetMode
+      test32 (Some Condition.AL) Op.SWP None None None
+             (ThreeOperands (OprReg R.IP, OprReg R.LR,
+                             OprMemory (OffsetMode
                                       (ImmOffset (R.R0, None, None)))))
              [| 0xe1uy; 0x00uy; 0xc0uy; 0x9euy |]
 
@@ -595,20 +1841,20 @@ module ARMv7 =
   type ExcepGenAndExcepHandlClass () =
     [<TestMethod>]
     member __.``[ARMv7] Exception-gen and exception-handling Parse Test`` () =
-      test32 (Some Condition.AL) Op.BKPT None None
-             (OneOperand (Immediate 3852L))
+      test32 (Some Condition.AL) Op.BKPT None None None
+             (OneOperand (OprImm 3852L))
              [| 0xe1uy; 0x20uy; 0xf0uy; 0x7cuy |]
 
-      test32 (Some Condition.AL) Op.SMC None None
-             (OneOperand (Immediate 15L))
+      test32 (Some Condition.AL) Op.SMC None None None
+             (OneOperand (OprImm 15L))
              [| 0xe1uy; 0x60uy; 0x00uy; 0x7fuy |]
 
-      test32 None Op.RFEIB None None
-             (OneOperand (Register R.RegisterWIP))
+      test32 None Op.RFEIB (Some true) None None
+             (OneOperand (OprReg R.IP))
              [| 0xf9uy; 0xbcuy; 0x0auy; 0x00uy |]
 
-      test32 None Op.SRSDB None None
-             (TwoOperands (Register R.RegisterWSP, Immediate 4L))
+      test32 None Op.SRSDB (Some true) None None
+             (TwoOperands (OprReg R.SP, OprImm 4L))
              [| 0xf9uy; 0x6duy; 0x05uy; 0x04uy |]
 
   /// A4.10 Co-processor instructions
@@ -616,29 +1862,29 @@ module ARMv7 =
   type CoprocessorClass () =
     [<TestMethod>]
     member __.``[ARMv7] Co-processor Parse Test`` () =
-      test32 (Some Condition.AL) Op.CDP None None
-             (SixOperands (Register R.P3, Immediate 0L, Register R.C2,
-                           Register R.C1, Register R.C8, Immediate 7L))
+      test32 (Some Condition.AL) Op.CDP None None None
+             (SixOperands (OprReg R.P3, OprImm 0L, OprReg R.C2,
+                           OprReg R.C1, OprReg R.C8, OprImm 7L))
              [| 0xeeuy; 0x01uy; 0x23uy; 0xe8uy |]
 
-      test32 (Some Condition.AL) Op.MCRR None None
-             (FiveOperands (Register R.P9, Immediate 14L, Register R.R1,
-                            Register R.R0, Register R.C3))
+      test32 (Some Condition.AL) Op.MCRR None None None
+             (FiveOperands (OprReg R.P9, OprImm 14L, OprReg R.R1,
+                            OprReg R.R0, OprReg R.C3))
              [| 0xecuy; 0x40uy; 0x19uy; 0xe3uy |]
 
-      test32 (Some Condition.AL) Op.MRC None None
-             (SixOperands (Register R.P5, Immediate 4L, Register R.SB,
-                           Register R.C14, Register R.C2, Immediate 1L))
+      test32 (Some Condition.AL) Op.MRC None None None
+             (SixOperands (OprReg R.P5, OprImm 4L, OprReg R.SB,
+                           OprReg R.C14, OprReg R.C2, OprImm 1L))
              [| 0xeeuy; 0x9euy; 0x95uy; 0x32uy |]
 
-      test32 (Some Condition.AL) Op.LDC None None
-             (ThreeOperands (Register R.P5, Register R.C10,
-                             Memory (LiteralMode 192L)))
+      test32 (Some Condition.AL) Op.LDC (Some false) None None
+             (ThreeOperands (OprReg R.P5, OprReg R.C10,
+                             OprMemory (LiteralMode 192L)))
              [| 0xeduy; 0x9fuy; 0xa5uy; 0x30uy |]
 
-      test32 (Some Condition.AL) Op.LDCL None None
-             (ThreeOperands (Register R.P12, Register R.C3,
-                             Memory (UnIdxMode (R.R0, 128L))))
+      test32 (Some Condition.AL) Op.LDCL None None None
+             (ThreeOperands (OprReg R.P12, OprReg R.C3,
+                             OprMemory (UnIdxMode (R.R0, 128L))))
              [| 0xecuy; 0xd0uy; 0x3cuy; 0x80uy |]
 
 
@@ -648,29 +1894,29 @@ module ARMv7 =
     /// A4.11.1 Element and structure load/store instructions
     [<TestMethod>]
     member __.``[ARMv7] Element and structure load/store Parse Test`` () =
-      test32 None Op.VLD4 None (Some (OneDT SIMDTyp16))
+      test32 None Op.VLD4 (Some true) None (Some (OneDT SIMDTyp16))
              (TwoOperands
-               (SIMDOpr (FourRegs (Scalar (R.D18, None), Scalar (R.D20, None),
+               (OprSIMD (FourRegs (Scalar (R.D18, None), Scalar (R.D20, None),
                                    Scalar (R.D22, None), Scalar (R.D24, None))),
-                           Memory (PostIdxMode
+                           OprMemory (PostIdxMode
                                      (AlignOffset (R.R0, Some 64L,
                                                    Some R.R0)))))
              [| 0xf4uy; 0xe0uy; 0x2fuy; 0x70uy |]
 
-      test32 None Op.VST1 None (Some (OneDT SIMDTyp32))
-             (TwoOperands (SIMDOpr (ThreeRegs (Vector R.D12, Vector R.D13,
+      test32 None Op.VST1 (Some true) None (Some (OneDT SIMDTyp32))
+             (TwoOperands (OprSIMD (ThreeRegs (Vector R.D12, Vector R.D13,
                                                Vector R.D14)),
-                           Memory (PostIdxMode
+                           OprMemory (PostIdxMode
                                      (AlignOffset (R.R2, Some 64L,
                                                    Some R.R0)))))
              [| 0xf4uy; 0x02uy; 0xc6uy; 0x90uy |]
 
-      test32 None Op.VST3 None (Some (OneDT SIMDTyp32))
+      test32 None Op.VST3 (Some true) None (Some (OneDT SIMDTyp32))
              (TwoOperands
-               (SIMDOpr (ThreeRegs (Scalar (R.D14, Some 1uy),
+               (OprSIMD (ThreeRegs (Scalar (R.D14, Some 1uy),
                                     Scalar (R.D16, Some 1uy),
                                     Scalar (R.D18, Some 1uy))),
-                           Memory (PostIdxMode
+                           OprMemory (PostIdxMode
                                      (AlignOffset (R.LR, None, Some R.R3)))))
              [| 0xf4uy; 0x8euy; 0xeauy; 0xc3uy |]
 
@@ -679,18 +1925,18 @@ module ARMv7 =
   type AdvSIMDAndFPRegTransClass () =
     [<TestMethod>]
     member __.``[ARMv7] Advanced SIMD and FP register transfer Parse Test`` () =
-      test32 (Some Condition.AL) Op.VDUP None (Some (OneDT SIMDTyp16))
-             (TwoOperands (SIMDOpr (SFReg (Vector R.D18)), Register R.LR))
+      test32 (Some Condition.AL) Op.VDUP None None (Some (OneDT SIMDTyp16))
+             (TwoOperands (OprSIMD (SFReg (Vector R.D18)), OprReg R.LR))
              [| 0xeeuy; 0x82uy; 0xebuy; 0xb0uy |]
 
-      test32 (Some Condition.AL) Op.VMOV None (Some (OneDT SIMDTyp8))
-             (TwoOperands (SIMDOpr (SFReg (Scalar (R.D18, Some 1uy))),
-                           Register R.IP))
+      test32 (Some Condition.AL) Op.VMOV None None (Some (OneDT SIMDTyp8))
+             (TwoOperands (OprSIMD (SFReg (Scalar (R.D18, Some 1uy))),
+                           OprReg R.IP))
              [| 0xeeuy; 0x42uy; 0xcbuy; 0xb0uy |]
 
-      test32 (Some Condition.AL) Op.VMOV None (Some (OneDT SIMDTypS16))
-             (TwoOperands (Register R.R8,
-                           SIMDOpr (SFReg (Scalar (R.D16, Some 0uy)))))
+      test32 (Some Condition.AL) Op.VMOV None None (Some (OneDT SIMDTypS16))
+             (TwoOperands (OprReg R.R8,
+                           OprSIMD (SFReg (Scalar (R.D16, Some 0uy)))))
              [| 0xeeuy; 0x10uy; 0x8buy; 0xb0uy |]
 
   /// A4.13 Advanced SIMD data-processing instructions
@@ -699,167 +1945,167 @@ module ARMv7 =
     /// A4.13.1 Advanced SIMD parallel addition and subtraction
     [<TestMethod>]
     member __.``[ARMv7] Advanced SIMD parallel add and sub Parse Test`` () =
-      test32 None Op.VADDW None (Some (OneDT SIMDTypS8))
-             (ThreeOperands (SIMDOpr (SFReg (Vector R.Q14)),
-                             SIMDOpr (SFReg (Vector R.Q8)),
-                             SIMDOpr (SFReg (Vector R.D10))))
+      test32 None Op.VADDW None None (Some (OneDT SIMDTypS8))
+             (ThreeOperands (OprSIMD (SFReg (Vector R.Q14)),
+                             OprSIMD (SFReg (Vector R.Q8)),
+                             OprSIMD (SFReg (Vector R.D10))))
              [| 0xf2uy; 0xc0uy; 0xc1uy; 0x8auy |]
 
-      test32 None Op.VHSUB None (Some (OneDT SIMDTypU32))
-             (ThreeOperands (SIMDOpr (SFReg (Vector R.D1)),
-                             SIMDOpr (SFReg (Vector R.D0)),
-                             SIMDOpr (SFReg (Vector R.D28))))
+      test32 None Op.VHSUB None None (Some (OneDT SIMDTypU32))
+             (ThreeOperands (OprSIMD (SFReg (Vector R.D1)),
+                             OprSIMD (SFReg (Vector R.D0)),
+                             OprSIMD (SFReg (Vector R.D28))))
              [| 0xf3uy; 0x20uy; 0x12uy; 0x2cuy |]
 
-      test32 None Op.VPADDL None (Some (OneDT SIMDTypU8))
-             (TwoOperands (SIMDOpr (SFReg (Vector R.D0)),
-                           SIMDOpr (SFReg (Vector R.D14))))
+      test32 None Op.VPADDL None None (Some (OneDT SIMDTypU8))
+             (TwoOperands (OprSIMD (SFReg (Vector R.D0)),
+                           OprSIMD (SFReg (Vector R.D14))))
              [| 0xf3uy; 0xb0uy; 0x02uy; 0x8euy |]
 
-      test32 None Op.VSUBHN None (Some (OneDT SIMDTypI32))
-             (ThreeOperands (SIMDOpr (SFReg (Vector R.D12)),
-                             SIMDOpr (SFReg (Vector R.Q8)),
-                             SIMDOpr (SFReg (Vector R.Q1))))
+      test32 None Op.VSUBHN None None (Some (OneDT SIMDTypI32))
+             (ThreeOperands (OprSIMD (SFReg (Vector R.D12)),
+                             OprSIMD (SFReg (Vector R.Q8)),
+                             OprSIMD (SFReg (Vector R.Q1))))
              [| 0xf2uy; 0x90uy; 0xc6uy; 0x82uy |]
 
     /// A4.13.2 Bitwise Advanced SIMD data-processing instructions
     [<TestMethod>]
     member __.``[ARMv7] Bitwise Advanced SIMD data-processing Parse Test`` () =
-      test32 None Op.VAND None None
-             (ThreeOperands (SIMDOpr (SFReg (Vector R.Q14)),
-                             SIMDOpr (SFReg (Vector R.Q9)),
-                             SIMDOpr (SFReg (Vector R.Q12))))
+      test32 None Op.VAND None None None
+             (ThreeOperands (OprSIMD (SFReg (Vector R.Q14)),
+                             OprSIMD (SFReg (Vector R.Q9)),
+                             OprSIMD (SFReg (Vector R.Q12))))
              [| 0xf2uy; 0x42uy; 0xc1uy; 0xf8uy |]
 
-      test32 None Op.VBIC None (Some (OneDT SIMDTypI32))
-             (TwoOperands (SIMDOpr (SFReg (Vector R.Q15)),
-                           Immediate 10158080L))
+      test32 None Op.VBIC None None (Some (OneDT SIMDTypI32))
+             (TwoOperands (OprSIMD (SFReg (Vector R.Q15)),
+                           OprImm 10158080L))
              [| 0xf3uy; 0xc1uy; 0xe5uy; 0x7buy |]
 
-      test32 (Some Condition.AL) Op.VMOV None None
-             (TwoOperands (Register R.IP, SIMDOpr (SFReg (Vector R.S4))))
+      test32 (Some Condition.AL) Op.VMOV None None None
+             (TwoOperands (OprReg R.IP, OprSIMD (SFReg (Vector R.S4))))
              [| 0xeeuy; 0x12uy; 0xcauy; 0x10uy |]
 
     /// A4.13.3 Advanced SIMD comparison instructions
     [<TestMethod>]
     member __.``[ARMv7] Advanced SIMD comparison Parse Test`` () =
-      test32 None Op.VCEQ None (Some (OneDT SIMDTypF32))
-             (ThreeOperands (SIMDOpr (SFReg (Vector R.Q12)),
-                             SIMDOpr (SFReg (Vector R.Q6)),
-                             SIMDOpr (SFReg (Vector R.Q0))))
+      test32 None Op.VCEQ None None (Some (OneDT SIMDTypF32))
+             (ThreeOperands (OprSIMD (SFReg (Vector R.Q12)),
+                             OprSIMD (SFReg (Vector R.Q6)),
+                             OprSIMD (SFReg (Vector R.Q0))))
              [| 0xf2uy; 0x4cuy; 0x8euy; 0x40uy |]
 
     /// A4.13.4 Advanced SIMD shift instructions
     [<TestMethod>]
     member __.``[ARMv7] Advanced SIMD shift Parse Test`` () =
-      test32 None Op.VQRSHRN None (Some (OneDT SIMDTypU64))
-             (ThreeOperands (SIMDOpr (SFReg (Vector R.D0)),
-                             SIMDOpr (SFReg (Vector R.Q0)), Immediate 32L))
+      test32 None Op.VQRSHRN None None (Some (OneDT SIMDTypU64))
+             (ThreeOperands (OprSIMD (SFReg (Vector R.D0)),
+                             OprSIMD (SFReg (Vector R.Q0)), OprImm 32L))
              [| 0xf3uy; 0xa0uy; 0x09uy; 0x50uy |]
 
-      test32 None Op.VQSHRUN None (Some (OneDT SIMDTypS64))
-             (ThreeOperands (SIMDOpr (SFReg (Vector R.D0)),
-                             SIMDOpr (SFReg (Vector R.Q8)), Immediate 8L))
+      test32 None Op.VQSHRUN None None (Some (OneDT SIMDTypS64))
+             (ThreeOperands (OprSIMD (SFReg (Vector R.D0)),
+                             OprSIMD (SFReg (Vector R.Q8)), OprImm 8L))
              [| 0xf3uy; 0xb8uy; 0x08uy; 0x30uy |]
 
-      test32 None Op.VSHL None (Some (OneDT SIMDTypI64))
-             (ThreeOperands (SIMDOpr (SFReg (Vector R.Q1)),
-                             SIMDOpr (SFReg (Vector R.Q4)), Immediate 56L))
+      test32 None Op.VSHL None None (Some (OneDT SIMDTypI64))
+             (ThreeOperands (OprSIMD (SFReg (Vector R.Q1)),
+                             OprSIMD (SFReg (Vector R.Q4)), OprImm 56L))
              [| 0xf2uy; 0xb8uy; 0x25uy; 0xd8uy |]
 
-      test32 None Op.VSHRN None (Some (OneDT SIMDTypI64))
-             (ThreeOperands (SIMDOpr (SFReg (Vector R.D0)),
-                             SIMDOpr (SFReg (Vector R.Q9)), Immediate 32L))
+      test32 None Op.VSHRN None None (Some (OneDT SIMDTypI64))
+             (ThreeOperands (OprSIMD (SFReg (Vector R.D0)),
+                             OprSIMD (SFReg (Vector R.Q9)), OprImm 32L))
              [| 0xf2uy; 0xa0uy; 0x08uy; 0x32uy |]
 
-      test32 None Op.VSRA None (Some (OneDT SIMDTypU64))
-             (ThreeOperands (SIMDOpr (SFReg (Vector R.Q8)),
-                             SIMDOpr (SFReg (Vector R.Q8)), Immediate 24L))
+      test32 None Op.VSRA None None (Some (OneDT SIMDTypU64))
+             (ThreeOperands (OprSIMD (SFReg (Vector R.Q8)),
+                             OprSIMD (SFReg (Vector R.Q8)), OprImm 24L))
              [| 0xf3uy; 0xe8uy; 0x01uy; 0xf0uy |]
 
-      test32 None Op.VSRI None (Some (OneDT SIMDTyp32))
-             (ThreeOperands (SIMDOpr (SFReg (Vector R.D9)),
-                             SIMDOpr (SFReg (Vector R.D26)), Immediate 7L))
+      test32 None Op.VSRI None None (Some (OneDT SIMDTyp32))
+             (ThreeOperands (OprSIMD (SFReg (Vector R.D9)),
+                             OprSIMD (SFReg (Vector R.D26)), OprImm 7L))
              [| 0xf3uy; 0xb9uy; 0x94uy; 0x3auy |]
 
     /// A4.13.5 Advanced SIMD multiply instructions
     [<TestMethod>]
     member __.``[ARMv7] Advanced SIMD multiply Parse Test`` () =
-      test32 None Op.VMLSL None (Some (OneDT SIMDTypU32))
-             (ThreeOperands (SIMDOpr (SFReg (Vector R.Q1)),
-                             SIMDOpr (SFReg (Vector R.D0)),
-                             SIMDOpr (SFReg (Vector R.D24))))
+      test32 None Op.VMLSL None None (Some (OneDT SIMDTypU32))
+             (ThreeOperands (OprSIMD (SFReg (Vector R.Q1)),
+                             OprSIMD (SFReg (Vector R.D0)),
+                             OprSIMD (SFReg (Vector R.D24))))
              [| 0xf3uy; 0xa0uy; 0x2auy; 0x28uy |]
 
-      test32 (Some Condition.AL) Op.VMUL None (Some (OneDT SIMDTypF32))
-             (ThreeOperands (SIMDOpr (SFReg (Vector R.S4)),
-                             SIMDOpr (SFReg (Vector R.S1)),
-                             SIMDOpr (SFReg (Vector R.S17))))
+      test32 (Some Condition.AL) Op.VMUL None None (Some (OneDT SIMDTypF32))
+             (ThreeOperands (OprSIMD (SFReg (Vector R.S4)),
+                             OprSIMD (SFReg (Vector R.S1)),
+                             OprSIMD (SFReg (Vector R.S17))))
              [| 0xeeuy; 0x20uy; 0x2auy; 0xa8uy |]
 
-      test32 None Op.VMULL None (Some (OneDT SIMDTypS8))
-             (ThreeOperands (SIMDOpr (SFReg (Vector R.Q12)),
-                             SIMDOpr (SFReg (Vector R.D18)),
-                             SIMDOpr (SFReg (Vector R.D16))))
+      test32 None Op.VMULL None None (Some (OneDT SIMDTypS8))
+             (ThreeOperands (OprSIMD (SFReg (Vector R.Q12)),
+                             OprSIMD (SFReg (Vector R.D18)),
+                             OprSIMD (SFReg (Vector R.D16))))
              [| 0xf2uy; 0xc2uy; 0x8cuy; 0xa0uy |]
 
-      test32 None Op.VMULL None (Some (OneDT SIMDTypU32))
-             (ThreeOperands (SIMDOpr (SFReg (Vector R.Q10)),
-                             SIMDOpr (SFReg (Vector R.D2)),
-                             SIMDOpr (SFReg (Scalar (R.D10, Some 0uy)))))
+      test32 None Op.VMULL None None (Some (OneDT SIMDTypU32))
+             (ThreeOperands (OprSIMD (SFReg (Vector R.Q10)),
+                             OprSIMD (SFReg (Vector R.D2)),
+                             OprSIMD (SFReg (Scalar (R.D10, Some 0uy)))))
              [| 0xf3uy; 0xe2uy; 0x4auy; 0x4auy |]
 
-      test32 None Op.VQDMULH None (Some (OneDT SIMDTypS16))
-             (ThreeOperands (SIMDOpr (SFReg (Vector R.Q9)),
-                             SIMDOpr (SFReg (Vector R.Q8)),
-                             SIMDOpr (SFReg (Scalar (R.D0, Some 3uy)))))
+      test32 None Op.VQDMULH None None (Some (OneDT SIMDTypS16))
+             (ThreeOperands (OprSIMD (SFReg (Vector R.Q9)),
+                             OprSIMD (SFReg (Vector R.Q8)),
+                             OprSIMD (SFReg (Scalar (R.D0, Some 3uy)))))
              [| 0xf3uy; 0xd0uy; 0x2cuy; 0xe8uy |]
 
     /// A4.13.6 Miscellaneous Advanced SIMD data-processing instructions
     [<TestMethod>]
     member __.``[ARMv7] Misc Advanced SIMD data-processing Parse Test`` () =
-      test32 None Op.VCVT None (Some (TwoDT (SIMDTypU32, SIMDTypF32)))
-             (ThreeOperands (SIMDOpr (SFReg (Vector R.D0)),
-                             SIMDOpr (SFReg (Vector R.D16)), Immediate 22L))
+      test32 None Op.VCVT None None (Some (TwoDT (SIMDTypU32, SIMDTypF32)))
+             (ThreeOperands (OprSIMD (SFReg (Vector R.D0)),
+                             OprSIMD (SFReg (Vector R.D16)), OprImm 22L))
              [| 0xf3uy; 0xaauy; 0x0fuy; 0x30uy |]
 
-      test32 (Some Condition.AL) Op.VCVT None (Some (TwoDT (SIMDTypU16, SIMDTypF64)))
-             (ThreeOperands (SIMDOpr (SFReg (Vector R.D0)),
-                             SIMDOpr (SFReg (Vector R.D0)), Immediate 11L))
+      test32 (Some Condition.AL) Op.VCVT None None (Some (TwoDT (SIMDTypU16, SIMDTypF64)))
+             (ThreeOperands (OprSIMD (SFReg (Vector R.D0)),
+                             OprSIMD (SFReg (Vector R.D0)), OprImm 11L))
              [| 0xeeuy; 0xbfuy; 0x0buy; 0x62uy |]
 
-      test32 None Op.VCNT None (Some (OneDT SIMDTyp8))
-             (TwoOperands (SIMDOpr (SFReg (Vector R.Q13)),
-                           SIMDOpr (SFReg (Vector R.Q15))))
+      test32 None Op.VCNT None None (Some (OneDT SIMDTyp8))
+             (TwoOperands (OprSIMD (SFReg (Vector R.Q13)),
+                           OprSIMD (SFReg (Vector R.Q15))))
              [| 0xf3uy; 0xf0uy; 0xa5uy; 0x6euy |]
 
-      test32 None Op.VEXT None (Some (OneDT SIMDTyp8))
-             (FourOperands (SIMDOpr (SFReg (Vector R.Q0)),
-                            SIMDOpr (SFReg (Vector R.Q8)),
-                            SIMDOpr (SFReg (Vector R.Q7)), Immediate 3L))
+      test32 None Op.VEXT None None (Some (OneDT SIMDTyp8))
+             (FourOperands (OprSIMD (SFReg (Vector R.Q0)),
+                            OprSIMD (SFReg (Vector R.Q8)),
+                            OprSIMD (SFReg (Vector R.Q7)), OprImm 3L))
              [| 0xf2uy; 0xb0uy; 0x03uy; 0xceuy |]
 
-      test32 (Some Condition.AL) Op.VNEG None (Some (OneDT SIMDTypF64))
-             (TwoOperands (SIMDOpr (SFReg (Vector R.D16)),
-                           SIMDOpr (SFReg (Vector R.D18))))
+      test32 (Some Condition.AL) Op.VNEG None None (Some (OneDT SIMDTypF64))
+             (TwoOperands (OprSIMD (SFReg (Vector R.D16)),
+                           OprSIMD (SFReg (Vector R.D18))))
              [| 0xeeuy; 0xf1uy; 0x0buy; 0x62uy |]
 
-      test32 None Op.VPMAX None (Some (OneDT SIMDTypF32))
-             (ThreeOperands (SIMDOpr (SFReg (Vector R.D25)),
-                             SIMDOpr (SFReg (Vector R.D0)),
-                             SIMDOpr (SFReg (Vector R.D15))))
+      test32 None Op.VPMAX None None (Some (OneDT SIMDTypF32))
+             (ThreeOperands (OprSIMD (SFReg (Vector R.D25)),
+                             OprSIMD (SFReg (Vector R.D0)),
+                             OprSIMD (SFReg (Vector R.D15))))
              [| 0xf3uy; 0x40uy; 0x9fuy; 0x0fuy |]
 
-      test32 None Op.VREV32 None (Some (OneDT SIMDTyp16))
-             (TwoOperands (SIMDOpr (SFReg (Vector R.Q0)),
-                           SIMDOpr (SFReg (Vector R.Q1))))
+      test32 None Op.VREV32 None None (Some (OneDT SIMDTyp16))
+             (TwoOperands (OprSIMD (SFReg (Vector R.Q0)),
+                           OprSIMD (SFReg (Vector R.Q1))))
              [| 0xf3uy; 0xb4uy; 0x00uy; 0xc2uy |]
 
-      test32 None Op.VTBX None (Some (OneDT SIMDTyp8))
-             (ThreeOperands (SIMDOpr (SFReg (Vector R.D5)),
-                             SIMDOpr (FourRegs (Vector R.D3, Vector R.D4,
+      test32 None Op.VTBX None None (Some (OneDT SIMDTyp8))
+             (ThreeOperands (OprSIMD (SFReg (Vector R.D5)),
+                             OprSIMD (FourRegs (Vector R.D3, Vector R.D4,
                                                 Vector R.D5, Vector R.D6)),
-                             SIMDOpr (SFReg (Vector R.D3))))
+                             OprSIMD (SFReg (Vector R.D3))))
              [| 0xf3uy; 0xb3uy; 0x5buy; 0x43uy |]
 
   /// A4.14 Floating-point data-processing instructions
@@ -867,29 +2113,29 @@ module ARMv7 =
   type FPDataProcessingClass () =
     [<TestMethod>]
     member __.``[ARMv7] Floating-point data-processing Parse Test`` () =
-      test32 (Some Condition.AL) Op.VCMPE None (Some (OneDT SIMDTypF64))
-             (TwoOperands (SIMDOpr (SFReg (Vector R.D0)), Immediate 0L))
+      test32 (Some Condition.AL) Op.VCMPE None None (Some (OneDT SIMDTypF64))
+             (TwoOperands (OprSIMD (SFReg (Vector R.D0)), OprImm 0L))
              [| 0xeeuy; 0xb5uy; 0x0buy; 0xc0uy |]
 
-      test32 (Some Condition.AL) Op.VCVT None (Some (TwoDT (SIMDTypF32, SIMDTypU32)))
-             (TwoOperands (SIMDOpr (SFReg (Vector R.S4)),
-                           SIMDOpr (SFReg (Vector R.S17))))
+      test32 (Some Condition.AL) Op.VCVT None None (Some (TwoDT (SIMDTypF32, SIMDTypU32)))
+             (TwoOperands (OprSIMD (SFReg (Vector R.S4)),
+                           OprSIMD (SFReg (Vector R.S17))))
              [| 0xeeuy; 0xb8uy; 0x2auy; 0x68uy |]
 
-      test32 (Some Condition.AL) Op.VCVTB None (Some (TwoDT (SIMDTypF16, SIMDTypF32)))
-             (TwoOperands (SIMDOpr (SFReg (Vector R.S0)),
-                           SIMDOpr (SFReg (Vector R.S6))))
+      test32 (Some Condition.AL) Op.VCVTB None None (Some (TwoDT (SIMDTypF16, SIMDTypF32)))
+             (TwoOperands (OprSIMD (SFReg (Vector R.S0)),
+                           OprSIMD (SFReg (Vector R.S6))))
              [| 0xeeuy; 0xb3uy; 0x0auy; 0x43uy |]
 
-      test32 (Some Condition.AL) Op.VMOV None (Some (OneDT SIMDTypF32))
-             (TwoOperands (SIMDOpr (SFReg (Vector R.S6)),
-                                    Immediate 1091567616L))
+      test32 (Some Condition.AL) Op.VMOV None None (Some (OneDT SIMDTypF32))
+             (TwoOperands (OprSIMD (SFReg (Vector R.S6)),
+                                    OprImm 1091567616L))
              [| 0xeeuy; 0xb2uy; 0x3auy; 0x02uy |]
 
-      test32 None Op.VMLS None (Some (OneDT SIMDTypI16))
-             (ThreeOperands (SIMDOpr (SFReg (Vector R.Q14)),
-                             SIMDOpr (SFReg (Vector R.Q1)),
-                             SIMDOpr (SFReg (Scalar (R.D0, Some 2uy)))))
+      test32 None Op.VMLS None None (Some (OneDT SIMDTypI16))
+             (ThreeOperands (OprSIMD (SFReg (Vector R.Q14)),
+                             OprSIMD (SFReg (Vector R.Q1)),
+                             OprSIMD (SFReg (Scalar (R.D0, Some 2uy)))))
              [| 0xf3uy; 0xd2uy; 0xc4uy; 0x60uy |]
 
 module ARM64 =
@@ -912,63 +2158,76 @@ module ARM64 =
     /// C4.2.1 Add/subtract (immediate)
     [<TestMethod>]
     member __.``[AArch64] Add/subtract (immedate) Parse Test`` () =
-      test64 Opcode.ADD (FourOperands (Register R.W26, Register R.W5, Immediate 0x371L,
-                                Shift (SRTypeLSL, Imm 12L)))
+      test64 Opcode.ADD (FourOperands (OprRegister R.W26,
+                                       OprRegister R.W5,
+                                       Immediate 0x371L,
+                                       Shift (SRTypeLSL, Imm 12L)))
              [| 0x11uy; 0x4duy; 0xc4uy; 0xbauy |]
 
     /// C4.2.2 Bit Field
     [<TestMethod>]
     member __.``[AArch64] Bitfield Parse Test`` () =
-      test64 Opcode.SBFX (FourOperands (Register R.W1, Register R.W0, Immediate 0x1L,
-                                 Immediate 0x1L))
+      test64 Opcode.SBFX (FourOperands (OprRegister R.W1,
+                                        OprRegister R.W0,
+                                        Immediate 0x1L,
+                                        Immediate 0x1L))
              [| 0x13uy; 0x01uy; 0x04uy; 0x01uy |]
 
     /// C4.2.3 Extract
     [<TestMethod>]
     member __.``[AArch64] Extract Parse Test`` () =
-      test64 Opcode.EXTR (FourOperands (Register R.X2, Register R.X1, Register R.X0,
-                                 LSB 0x1uy))
+      test64 Opcode.EXTR (FourOperands (OprRegister R.X2,
+                                        OprRegister R.X1,
+                                        OprRegister R.X0,
+                                        LSB 0x1uy))
              [| 0x93uy; 0xc0uy; 0x04uy; 0x22uy |]
 
     /// C4.2.4 Logical (immediate)
     [<TestMethod>]
     member __.``[AArch64] Logical (immedate) Parse Test`` () =
-      test64 Opcode.AND (ThreeOperands (Register R.W1, Register R.W0,
-                                 Immediate 0x80000001L))
+      test64 Opcode.AND (ThreeOperands (OprRegister R.W1,
+                                        OprRegister R.W0,
+                                        Immediate 0x80000001L))
              [| 0x12uy; 0x01uy; 0x04uy; 0x01uy |]
 
-      test64 Opcode.AND (ThreeOperands (Register R.W1, Register R.W0,
-                                 Immediate 0xE0000001L))
+      test64 Opcode.AND (ThreeOperands (OprRegister R.W1,
+                                        OprRegister R.W0,
+                                        Immediate 0xE0000001L))
              [| 0x12uy; 0x03uy; 0x0cuy; 0x01uy |]
 
-      test64 Opcode.AND (ThreeOperands (Register R.W1, Register R.W0, Immediate 0x3L))
+      test64 Opcode.AND (ThreeOperands (OprRegister R.W1,
+                                        OprRegister R.W0,
+                                        Immediate 0x3L))
              [| 0x12uy; 0x20uy; 0x04uy; 0x01uy |]
 
-      test64 Opcode.AND (ThreeOperands (Register R.W1, Register R.W1,
-                                 Immediate 0xffffffdfL))
+      test64 Opcode.AND (ThreeOperands (OprRegister R.W1,
+                                        OprRegister R.W1,
+                                        Immediate 0xffffffdfL))
              [| 0x12uy; 0x1auy; 0x78uy; 0x21uy |]
 
-      test64 Opcode.AND (ThreeOperands (Register R.X1, Register R.X0,
-                                 Immediate 0x300000003L))
+      test64 Opcode.AND (ThreeOperands (OprRegister R.X1,
+                                        OprRegister R.X0,
+                                        Immediate 0x300000003L))
              [| 0x92uy; 0x20uy; 0x04uy; 0x01uy |]
 
     /// C4.2.5 Move wide (immediate)
     [<TestMethod>]
     member __.``[AArch64] Move wide (immediate) Parse Test`` () =
-      test64 Opcode.MOVN (ThreeOperands (Register R.X21, Immediate 0x0L,
-                                  Shift (SRTypeLSL, Imm 0x10L)))
+      test64 Opcode.MOVN (ThreeOperands (OprRegister R.X21, Immediate 0x0L,
+                                         Shift (SRTypeLSL, Imm 0x10L)))
              [| 0x92uy; 0xa0uy; 0x00uy; 0x15uy |]
 
-      test64 Opcode.MOV (TwoOperands (Register R.XZR, Immediate 0XE002FFFFFFFFFFFFL))
+      test64 Opcode.MOV (TwoOperands (OprRegister R.XZR,
+                                      Immediate 0XE002FFFFFFFFFFFFL))
              [| 0x92uy; 0xe3uy; 0xffuy; 0xbfuy |] (* Alias of MOVN *)
 
-      test64 Opcode.MOV (TwoOperands (Register R.W26, Immediate 0x7FFFFFFFL))
+      test64 Opcode.MOV (TwoOperands (OprRegister R.W26, Immediate 0x7FFFFFFFL))
              [| 0x12uy; 0xb0uy; 0x00uy; 0x1auy |] (* Alias of MOVN *)
 
     /// C4.2.6 PC-rel. addressing
     [<TestMethod>]
     member __.``[AArch64] PC-rel. addressing Parse Test`` () =
-      test64 Opcode.ADR (TwoOperands (Register R.X7, memLabel 0xffe0fL))
+      test64 Opcode.ADR (TwoOperands (OprRegister R.X7, memLabel 0xffe0fL))
              [| 0x70uy; 0x7fuy; 0xf0uy; 0x67uy |]
 
   /// C4.3 Branches, exception generating and system instructions
@@ -977,7 +2236,7 @@ module ARM64 =
     /// C4.3.1 Compare & branch (immediate)
     [<TestMethod>]
     member __.``[AArch64] Compare & branch Parse Test`` () =
-      test64 Opcode.CBZ (TwoOperands (Register R.X3, memLabel 0x8204L))
+      test64 Opcode.CBZ (TwoOperands (OprRegister R.X3, memLabel 0x8204L))
              [| 0xb4uy; 0x04uy; 0x10uy; 0x23uy |]
 
     /// C4.3.2 Conditional branch (immediate)
@@ -1007,26 +2266,31 @@ module ARM64 =
       test64 Opcode.SEVL NoOperand
              [| 0xd5uy; 0x03uy; 0x20uy; 0xbfuy |]
 
-      test64 Opcode.DC (TwoOperands (SysOpr (DCOpr ZVA), Register R.X3))
+      test64 Opcode.DC (TwoOperands (SysOpr (DCOpr ZVA), OprRegister R.X3))
              [| 0xd5uy; 0x0buy; 0x74uy; 0x23uy |]
 
-      test64 Opcode.SYSL (FiveOperands (Register R.X24, Immediate 0L, Register R.C15,
-                                 Register R.C4, Immediate 6L))
+      test64 Opcode.SYSL (FiveOperands (OprRegister R.X24,
+                                        Immediate 0L, OprRegister R.C15,
+                                        OprRegister R.C4, Immediate 6L))
              [| 0xd5uy; 0x28uy; 0xf4uy; 0xd8uy |]
 
-      test64 Opcode.MSR (TwoOperands (Register (R.HPFAREL2), Register R.X0))
+      test64 Opcode.MSR (TwoOperands (OprRegister (R.HPFAREL2),
+                                      OprRegister R.X0))
              [| 0xd5uy; 0x1cuy; 0x60uy; 0x80uy |]
 
-      test64 Opcode.MSR (TwoOperands (Register (R.ACTLREL1), Register R.X0))
+      test64 Opcode.MSR (TwoOperands (OprRegister (R.ACTLREL1),
+                                      OprRegister R.X0))
              [| 0xd5uy; 0x18uy; 0x10uy; 0x20uy |]
 
-      test64 Opcode.MRS (TwoOperands (Register R.X0, Register (R.ACTLREL1)))
+      test64 Opcode.MRS (TwoOperands (OprRegister R.X0,
+                                      OprRegister (R.ACTLREL1)))
              [| 0xd5uy; 0x38uy; 0x10uy; 0x20uy |]
 
     /// C4.3.5 Test & branch (immediate)
     [<TestMethod>]
     member __.``[AArch64] Test & branch (immediate) Parse Test`` () =
-      test64 Opcode.TBZ (ThreeOperands (Register R.X3, Immediate 0x21L, memLabel 0x8L))
+      test64 Opcode.TBZ (ThreeOperands (OprRegister R.X3,
+                                        Immediate 0x21L, memLabel 0x8L))
              [| 0xb6uy; 0x08uy; 0x00uy; 0x43uy |]
 
     /// C4.3.6 Unconditional branch (immediate)
@@ -1038,7 +2302,7 @@ module ARM64 =
     /// C4.3.7 Unconditional branch (register)
     [<TestMethod>]
     member __.``[AArch64] Unconditional branch (register) Parse Test`` () =
-      test64 Opcode.BR (OneOperand (Register R.XZR))
+      test64 Opcode.BR (OneOperand (OprRegister R.XZR))
              [| 0xd6uy; 0x1fuy; 0x03uy; 0xe0uy |]
 
   /// C4.4 Loads and stores
@@ -1165,10 +2429,11 @@ module ARM64 =
     /// C4.4.5 Load register (literal)
     [<TestMethod>]
     member __.``[AArch64] Load register (literal) Parse Test`` () =
-      test64 Opcode.LDR (TwoOperands (Register R.X9, memLabel 0xa6388L))
+      test64 Opcode.LDR (TwoOperands (OprRegister R.X9, memLabel 0xa6388L))
              [| 0x58uy; 0x53uy; 0x1cuy; 0x49uy |]
 
-      test64 Opcode.LDRSW (TwoOperands (Register R.X30, memLabel 0xfffffffffff00000L))
+      test64 Opcode.LDRSW (TwoOperands (OprRegister R.X30,
+                                        memLabel 0xfffffffffff00000L))
              [| 0x98uy; 0x80uy; 0x00uy; 0x1euy |]
 
       test64 Opcode.PRFM (TwoOperands (PrfOp PLIL2STRM, memLabel 0x1004L))
@@ -1177,21 +2442,24 @@ module ARM64 =
     /// C4.4.6 Load/store exclusive
     [<TestMethod>]
     member __.``[AArch64] Load/store exclusive Parse Test`` () =
-      test64 Opcode.STXRB (ThreeOperands (Register R.W20, Register R.W21,
-                                   memBaseImm (R.X5, None)))
+      test64 Opcode.STXRB (ThreeOperands (OprRegister R.W20, OprRegister R.W21,
+                                          memBaseImm (R.X5, None)))
              [| 0x08uy; 0x14uy; 0x7cuy; 0xb5uy |]
 
-      test64 Opcode.STXP (FourOperands (Register R.W11, Register R.W2, Register R.W1,
-                                 memBaseImm (R.X6, None)))
+      test64 Opcode.STXP (FourOperands (OprRegister R.W11,
+                                        OprRegister R.W2,
+                                        OprRegister R.W1,
+                                        memBaseImm (R.X6, None)))
              [| 0x88uy; 0x2buy; 0x04uy; 0xc2uy |]
 
-      test64 Opcode.LDXRB (TwoOperands (Register R.W26, memBaseImm (R.X11, None)))
+      test64 Opcode.LDXRB (TwoOperands (OprRegister R.W26,
+                                        memBaseImm (R.X11, None)))
              [| 0x08uy; 0x5fuy; 0x7duy; 0x7auy |]
 
     /// C4.4.7 Load/store no-allocate pair (offset)
     [<TestMethod>]
     member __.``[AArch64] Load/store no-allocate pair (offset) Parse Test`` () =
-      test64 Opcode.STNP (ThreeOperands (Register R.W3, Register R.W10,
+      test64 Opcode.STNP (ThreeOperands (OprRegister R.W3, OprRegister R.W10,
                                   memBaseImm (R.X21, Some 0x60L)))
              [| 0x28uy; 0x0cuy; 0x2auy; 0xa3uy |]
 
@@ -1202,29 +2470,30 @@ module ARM64 =
     /// C4.4.8 Load/store register (immediate post-indexed)
     [<TestMethod>]
     member __.``[AArch64] Load/store register (imm post-idx) Parse Test`` () =
-      test64 Opcode.STRB (TwoOperands (Register R.W3,
+      test64 Opcode.STRB (TwoOperands (OprRegister R.W3,
                                 memPostIdxImm (R.X1, Some 0xffffffffffffff0aL)))
              [| 0x38uy; 0x10uy; 0xa4uy; 0x23uy |]
 
-      test64 Opcode.LDRSB (TwoOperands (Register R.W18,
+      test64 Opcode.LDRSB (TwoOperands (OprRegister R.W18,
                                  memPostIdxImm (R.X5, Some 0xeaL)))
              [| 0x38uy; 0xceuy; 0xa4uy; 0xb2uy |]
 
       test64 Opcode.STR (TwoOperands (scalReg R.H2, memPostIdxImm (R.X1, Some 0xcaL)))
              [| 0x7cuy; 0x0cuy; 0xa4uy; 0x22uy |]
 
-      test64 Opcode.STRH (TwoOperands (Register R.W21,
+      test64 Opcode.STRH (TwoOperands (OprRegister R.W21,
                                 memPostIdxImm (R.X7, Some 0xffffffffffffff00L)))
              [| 0x78uy; 0x10uy; 0x04uy; 0xf5uy |]
 
-      test64 Opcode.LDRSW (TwoOperands (Register R.X21,
+      test64 Opcode.LDRSW (TwoOperands (OprRegister R.X21,
                                  memPostIdxImm (R.X10, Some 0x3L)))
              [| 0xb8uy; 0x80uy; 0x35uy; 0x55uy |]
 
     /// C4.4.9 Load/store register (immediate pre-indexed)
     [<TestMethod>]
     member __.``[AArch64] Load/store register (imm pre-idx) Parse Test`` () =
-      test64 Opcode.STRB (TwoOperands (Register R.W17, memPreIdxImm (R.X5, Some 0xfL)))
+      test64 Opcode.STRB (TwoOperands (OprRegister R.W17,
+                                       memPreIdxImm (R.X5, Some 0xfL)))
              [| 0x38uy; 0x00uy; 0xfcuy; 0xb1uy |]
 
       test64 Opcode.STR (TwoOperands (scalReg R.H10, memPreIdxImm (R.X3, Some 0xfL)))
@@ -1233,31 +2502,31 @@ module ARM64 =
     /// C4.4.10 Load/store register (register offset)
     [<TestMethod>]
     member __.``[AArch64] Load/store register (reg offset) Parse Test`` () =
-      test64 Opcode.STRB (TwoOperands (Register R.W7,
+      test64 Opcode.STRB (TwoOperands (OprRegister R.W7,
                                 memBaseReg (R.X3, R.W1,
                                             Some (ExtRegOffset (ExtUXTW,
                                                                 None)))))
              [| 0x38uy; 0x21uy; 0x48uy; 0x67uy |]
 
-      test64 Opcode.STRB (TwoOperands (Register R.W7,
+      test64 Opcode.STRB (TwoOperands (OprRegister R.W7,
                                 memBaseReg (R.X3, R.W3,
                                             Some (ExtRegOffset (ExtUXTW,
                                                                 Some 0x0L)))))
              [| 0x38uy; 0x23uy; 0x58uy; 0x67uy |]
 
-      test64 Opcode.STRB (TwoOperands (Register R.W12,
+      test64 Opcode.STRB (TwoOperands (OprRegister R.W12,
                                 memBaseReg (R.X1, R.X0,
                                             Some (ShiftOffset (SRTypeLSL,
                                                                Imm 0x0L)))))
              [| 0x38uy; 0x20uy; 0x78uy; 0x2cuy |]
 
-      test64 Opcode.LDRH (TwoOperands (Register R.WZR,
+      test64 Opcode.LDRH (TwoOperands (OprRegister R.WZR,
                                 memBaseReg (R.X21, R.W7,
                                             Some (ExtRegOffset (ExtSXTW,
                                                                 None)))))
              [| 0x78uy; 0x67uy; 0xcauy; 0xbfuy |]
 
-      test64 Opcode.LDRSH (TwoOperands (Register R.W17,
+      test64 Opcode.LDRSH (TwoOperands (OprRegister R.W17,
                                  memBaseReg (R.X3, R.X3,
                                              Some (ShiftOffset (SRTypeLSL,
                                                                 Imm 0x1L)))))
@@ -1278,21 +2547,23 @@ module ARM64 =
     /// C4.4.11 Load/store register (unprivileged)
     [<TestMethod>]
     member __.``[AArch64] Load/store register (unprivileged) Parse Test`` () =
-      test64 Opcode.STTRB (TwoOperands (Register R.W14, memBaseImm (R.X7, Some 0x19L)))
+      test64 Opcode.STTRB (TwoOperands (OprRegister R.W14,
+                                        memBaseImm (R.X7, Some 0x19L)))
              [| 0x38uy; 0x01uy; 0x98uy; 0xeeuy |]
 
-      test64 Opcode.STTRH (TwoOperands (Register R.W26,
+      test64 Opcode.STTRH (TwoOperands (OprRegister R.W26,
                                  memBaseImm (R.X5, Some 0xffffffffffffff18L)))
              [| 0x78uy; 0x11uy; 0x88uy; 0xbauy |]
 
-      test64 Opcode.LDTRSW (TwoOperands (Register R.X10,
+      test64 Opcode.LDTRSW (TwoOperands (OprRegister R.X10,
                                   memBaseImm (R.X3, Some 0x1fL)))
              [| 0xb8uy; 0x81uy; 0xf8uy; 0x6auy |]
 
     /// C4.4.12 Load/store register (unscaled immediate)
     [<TestMethod>]
     member __.``[AArch64] Load/store register (unscaled imm) Parse Test`` () =
-      test64 Opcode.STURB (TwoOperands (Register R.W24, memBaseImm (R.X7, Some 0x6aL)))
+      test64 Opcode.STURB (TwoOperands (OprRegister R.W24,
+                                        memBaseImm (R.X7, Some 0x6aL)))
              [| 0x38uy; 0x06uy; 0xa0uy; 0xf8uy |]
 
       test64 Opcode.LDUR (TwoOperands (scalReg R.Q3, memBaseImm (R.X20, Some 0xe0L)))
@@ -1305,7 +2576,8 @@ module ARM64 =
     /// C4.4.13 Load/store register (unsigned immediate)
     [<TestMethod>]
     member __.``[AArch64] Load/store register (unsigned imm) Parse Test`` () =
-      test64 Opcode.STRB (TwoOperands (Register R.WZR, memBaseImm (R.SP, Some 0x555L)))
+      test64 Opcode.STRB (TwoOperands (OprRegister R.WZR,
+                                       memBaseImm (R.SP, Some 0x555L)))
              [| 0x39uy; 0x15uy; 0x57uy; 0xffuy |]
 
       test64 Opcode.STR (TwoOperands (scalReg R.S31, memBaseImm (R.SP, Some 0x1ffcL)))
@@ -1318,25 +2590,27 @@ module ARM64 =
     /// C4.4.14 Load/store register pair (offset)
     [<TestMethod>]
     member __.``[AArch64] Load/store register pair (offset) Parse Test`` () =
-      test64 Opcode.LDP (ThreeOperands (Register R.W25, Register R.W18,
-                                 memBaseImm (R.X29, Some 0xffffffffffffff0cL)))
+      test64 Opcode.LDP (ThreeOperands (OprRegister R.W25,
+                                        OprRegister R.W18,
+                                        memBaseImm (R.X29,
+                                                    Some 0xffffffffffffff0cL)))
              [| 0x29uy; 0x61uy; 0xcbuy; 0xb9uy |]
 
     /// C4.4.15 Load/store register pair (post-indexed)
     [<TestMethod>]
     member __.``[AArch64] Load/store register pair (post-idx) Parse Test`` () =
-      test64 Opcode.STP (ThreeOperands (Register R.X11, Register R.X21,
+      test64 Opcode.STP (ThreeOperands (OprRegister R.X11, OprRegister R.X21,
                                  memPostIdxImm (R.SP, Some 0x1f8L)))
              [| 0xa8uy; 0x9fuy; 0xd7uy; 0xebuy |]
 
-      test64 Opcode.LDPSW (ThreeOperands (Register R.XZR, Register R.X23,
+      test64 Opcode.LDPSW (ThreeOperands (OprRegister R.XZR, OprRegister R.X23,
                                    memPostIdxImm (R.X30, Some 0x7cL)))
              [| 0x68uy; 0xcfuy; 0xdfuy; 0xdfuy |]
 
     /// C4.4.16 Load/store register pair (pre-indexed)
     [<TestMethod>]
     member __.``[AArch64] Load/store register pair (pre-idx) Parse Test`` () =
-      test64 Opcode.STP (ThreeOperands (Register R.XZR, Register R.XZR,
+      test64 Opcode.STP (ThreeOperands (OprRegister R.XZR, OprRegister R.XZR,
                                  memPreIdxImm (R.SP, Some 0x1f8L)))
              [| 0xa9uy; 0x9fuy; 0xffuy; 0xffuy |]
 
@@ -1346,192 +2620,245 @@ module ARM64 =
     /// C4.5.1 Add/subtract (extended register)
     [<TestMethod>]
     member __.``[AArch64] Add/subtract (extended register) Parse Test`` () =
-      test64 Opcode.ADD (FourOperands (Register R.WSP, Register R.WSP, Register R.WZR,
-                                ExtReg None))
+      test64 Opcode.ADD (FourOperands (OprRegister R.WSP,
+                                       OprRegister R.WSP,
+                                       OprRegister R.WZR,
+                                       ExtReg None))
              [| 0x0buy; 0x3fuy; 0x43uy; 0xffuy |]
 
-      test64 Opcode.ADD (FourOperands (Register R.WSP, Register R.WSP, Register R.WZR,
-                                ExtReg (Some (ShiftOffset (SRTypeLSL,
-                                                           Imm 2L)))))
+      test64 Opcode.ADD (FourOperands (OprRegister R.WSP,
+                                       OprRegister R.WSP,
+                                       OprRegister R.WZR,
+                                       ExtReg (Some (ShiftOffset (SRTypeLSL,
+                                                                  Imm 2L)))))
              [| 0x0buy; 0x3fuy; 0x4buy; 0xffuy |]
 
-      test64 Opcode.ADD (FourOperands (Register R.SP, Register R.X10, Register R.W10,
-                                ExtReg (Some (ExtRegOffset (ExtUXTW,
-                                                            Some 2L)))))
+      test64 Opcode.ADD (FourOperands (OprRegister R.SP,
+                                       OprRegister R.X10,
+                                       OprRegister R.W10,
+                                       ExtReg (Some (ExtRegOffset (ExtUXTW,
+                                                                   Some 2L)))))
              [| 0x8buy; 0x2auy; 0x49uy; 0x5fuy |]
 
-      test64 Opcode.CMN (ThreeOperands (Register R.SP, Register R.X14,
-                                 ExtReg (Some (ShiftOffset (SRTypeLSL,
-                                                            Imm 1L)))))
+      test64 Opcode.CMN (ThreeOperands (OprRegister R.SP,
+                                        OprRegister R.X14,
+                                        ExtReg (Some (ShiftOffset (SRTypeLSL,
+                                                                   Imm 1L)))))
              [| 0xabuy; 0x2euy; 0x67uy; 0xffuy |]
 
     /// C4.5.2 Add/subtract (shifted register)
     [<TestMethod>]
     member __.``[AArch64] Add/subtract (shifted register) Parse Test`` () =
-      test64 Opcode.ADD (FourOperands (Register R.W27, Register R.W28, Register R.W14,
-                                Shift (SRTypeASR, Imm 23L)))
+      test64 Opcode.ADD (FourOperands (OprRegister R.W27,
+                                       OprRegister R.W28,
+                                       OprRegister R.W14,
+                                       Shift (SRTypeASR, Imm 23L)))
              [| 0x0buy; 0x8euy; 0x5fuy; 0x9buy |]
 
-      test64 Opcode.SUBS (FourOperands (Register R.W11, Register R.W29, Register R.W14,
-                                 Shift (SRTypeLSR, Imm 7L)))
+      test64 Opcode.SUBS (FourOperands (OprRegister R.W11,
+                                        OprRegister R.W29,
+                                        OprRegister R.W14,
+                                        Shift (SRTypeLSR, Imm 7L)))
              [| 0x6buy; 0x4euy; 0x1fuy; 0xabuy |]
 
-      test64 Opcode.ADDS (FourOperands (Register R.X18, Register R.X29, Register R.X14,
-                                 Shift (SRTypeASR, Imm 7L)))
+      test64 Opcode.ADDS (FourOperands (OprRegister R.X18,
+                                        OprRegister R.X29,
+                                        OprRegister R.X14,
+                                        Shift (SRTypeASR, Imm 7L)))
              [| 0xabuy; 0x8euy; 0x1fuy; 0xb2uy |]
 
     /// C4.5.3 Add/subtract (with carry)
     [<TestMethod>]
     member __.``[AArch64] Add/subtract (with carry) Parse Test`` () =
-      test64 Opcode.ADCS (ThreeOperands (Register R.XZR, Register R.X21,
-                                  Register R.X10))
+      test64 Opcode.ADCS (ThreeOperands (OprRegister R.XZR,
+                                         OprRegister R.X21,
+                                         OprRegister R.X10))
              [| 0xbauy; 0x0auy; 0x02uy; 0xbfuy |]
 
-      test64 Opcode.NGC (TwoOperands (Register R.W30, Register R.W11))
+      test64 Opcode.NGC (TwoOperands (OprRegister R.W30, OprRegister R.W11))
              [| 0x5auy; 0x0buy; 0x03uy; 0xfeuy |]
 
     /// C4.5.4 Conditional compare (immediate)
     [<TestMethod>]
     member __.``[AArch64] Conditional compare (immediate) Parse Test`` () =
-      test64 Opcode.CCMN (FourOperands (Register R.X3, Immediate 0x15L, NZCV 8uy,
-                                 Cond GT))
+      test64 Opcode.CCMN (FourOperands (OprRegister R.X3,
+                                        Immediate 0x15L,
+                                        NZCV 8uy,
+                                        Cond GT))
              [| 0xbauy; 0x55uy; 0xc8uy; 0x68uy |]
 
     /// C4.5.5 Conditional compare (register)
     [<TestMethod>]
     member __.``[AArch64] Conditional compare (register) Parse Test`` () =
-      test64 Opcode.CCMN (FourOperands (Register R.X15, Register R.X28, NZCV 0xfuy,
-                                 Cond PL))
+      test64 Opcode.CCMN (FourOperands (OprRegister R.X15,
+                                        OprRegister R.X28,
+                                        NZCV 0xfuy,
+                                        Cond PL))
              [| 0xbauy; 0x5cuy; 0x51uy; 0xefuy |]
 
     /// C4.5.6 Conditional select
     [<TestMethod>]
     member __.``[AArch64] Conditional select Parse Test`` () =
-      test64 Opcode.CSEL (FourOperands (Register R.X28, Register R.X23, Register R.X6,
-                                 Cond LS))
+      test64 Opcode.CSEL (FourOperands (OprRegister R.X28,
+                                        OprRegister R.X23,
+                                        OprRegister R.X6,
+                                        Cond LS))
              [| 0x9auy; 0x86uy; 0x92uy; 0xfcuy |]
 
-      test64 Opcode.CSINC (FourOperands (Register R.W21, Register R.W0, Register R.W16,
-                                  Cond CS)) // HS
+      test64 Opcode.CSINC (FourOperands (OprRegister R.W21,
+                                         OprRegister R.W0,
+                                         OprRegister R.W16,
+                                         Cond CS)) // HS
              [| 0x1auy; 0x90uy; 0x24uy; 0x15uy |]
 
-      test64 Opcode.CINC (ThreeOperands (Register R.W21, Register R.W16, Cond CC))// LO
+      test64 Opcode.CINC (ThreeOperands (OprRegister R.W21,
+                                         OprRegister R.W16, Cond CC))// LO
              [| 0x1auy; 0x90uy; 0x26uy; 0x15uy |]
 
-      test64 Opcode.CSET (TwoOperands (Register R.W7, Cond LE))
+      test64 Opcode.CSET (TwoOperands (OprRegister R.W7, Cond LE))
              [| 0x1auy; 0x9fuy; 0xc7uy; 0xe7uy |]
 
-      test64 Opcode.CINV (ThreeOperands (Register R.X10, Register R.X7, Cond LE))
+      test64 Opcode.CINV (ThreeOperands (OprRegister R.X10,
+                                         OprRegister R.X7, Cond LE))
              [| 0xdauy; 0x87uy; 0xc0uy; 0xeauy |]
 
-      test64 Opcode.CSETM (TwoOperands (Register R.X10, Cond LE))
+      test64 Opcode.CSETM (TwoOperands (OprRegister R.X10, Cond LE))
              [| 0xdauy; 0x9fuy; 0xc3uy; 0xeauy |]
 
-      test64 Opcode.CSINV (FourOperands (Register R.X10, Register R.X27,
-                                  Register R.XZR, Cond GT))
+      test64 Opcode.CSINV (FourOperands (OprRegister R.X10,
+                                         OprRegister R.X27,
+                                         OprRegister R.XZR, Cond GT))
              [| 0xdauy; 0x9fuy; 0xc3uy; 0x6auy |]
 
-      test64 Opcode.CSNEG (FourOperands (Register R.W30, Register R.W21,
-                                  Register R.W10, Cond AL))
+      test64 Opcode.CSNEG (FourOperands (OprRegister R.W30,
+                                         OprRegister R.W21,
+                                         OprRegister R.W10, Cond AL))
              [| 0x5auy; 0x8auy; 0xe6uy; 0xbeuy |]
 
-      test64 Opcode.CNEG (ThreeOperands (Register R.W30, Register R.W21, Cond LE))
+      test64 Opcode.CNEG (ThreeOperands (OprRegister R.W30,
+                                         OprRegister R.W21, Cond LE))
              [| 0x5auy; 0x95uy; 0xc6uy; 0xbeuy |]
 
     /// C4.5.7 Data-processing (1 source)
     [<TestMethod>]
     member __.``[AArch64] Data-processing (1 source) Parse Test`` () =
-      test64 Opcode.RBIT (TwoOperands (Register R.W28, Register R.W11))
+      test64 Opcode.RBIT (TwoOperands (OprRegister R.W28, OprRegister R.W11))
              [| 0x5auy; 0xc0uy; 0x01uy; 0x7cuy |]
 
-      test64 Opcode.CLS (TwoOperands (Register R.XZR, Register R.X11))
+      test64 Opcode.CLS (TwoOperands (OprRegister R.XZR, OprRegister R.X11))
              [| 0xdauy; 0xc0uy; 0x15uy; 0x7fuy |]
 
-      test64 Opcode.REV32 (TwoOperands (Register R.X30, Register R.X15))
+      test64 Opcode.REV32 (TwoOperands (OprRegister R.X30, OprRegister R.X15))
              [| 0xdauy; 0xc0uy; 0x09uy; 0xfeuy |]
 
     /// C4.5.8 Data-processing (2 source)
     [<TestMethod>]
     member __.``[AArch64] Data-processing (2 source) Parse Test`` () =
-      test64 Opcode.UDIV (ThreeOperands (Register R.W30, Register R.W23,
-                                  Register R.W9))
+      test64 Opcode.UDIV (ThreeOperands (OprRegister R.W30, OprRegister R.W23,
+                                  OprRegister R.W9))
              [| 0x1auy; 0xc9uy; 0x0auy; 0xfeuy |]
 
-      test64 Opcode.CRC32CX (ThreeOperands (Register R.W29, Register R.W3,
-                                     Register R.X26))
+      test64 Opcode.CRC32CX (ThreeOperands (OprRegister R.W29, OprRegister R.W3,
+                                     OprRegister R.X26))
              [| 0x9auy; 0xdauy; 0x5cuy; 0x7duy |]
 
     /// C4.5.9 Data-processing (3 source)
     [<TestMethod>]
     member __.``[AArch64] Data-processing (3 source) Parse Test`` () =
-      test64 Opcode.MADD (FourOperands (Register R.X7, Register R.X28, Register R.X10,
-                                 Register R.X11))
+      test64 Opcode.MADD (FourOperands (OprRegister R.X7,
+                                        OprRegister R.X28,
+                                        OprRegister R.X10,
+                                        OprRegister R.X11))
              [| 0x9buy; 0x0auy; 0x2fuy; 0x87uy |]
 
-      test64 Opcode.MUL (ThreeOperands (Register R.X7, Register R.X28, Register R.X10))
+      test64 Opcode.MUL (ThreeOperands (OprRegister R.X7,
+                                        OprRegister R.X28,
+                                        OprRegister R.X10))
              [| 0x9buy; 0x0auy; 0x7fuy; 0x87uy |] (* Alias of MADD *)
 
-      test64 Opcode.MSUB (FourOperands (Register R.X7, Register R.X28, Register R.X10,
-                                 Register R.X11))
+      test64 Opcode.MSUB (FourOperands (OprRegister R.X7,
+                                        OprRegister R.X28,
+                                        OprRegister R.X10,
+                                        OprRegister R.X11))
              [| 0x9buy; 0x0auy; 0xafuy; 0x87uy |]
 
-      test64 Opcode.SMADDL (FourOperands (Register R.X7, Register R.W28,
-                                   Register R.W10, Register R.X11))
+      test64 Opcode.SMADDL (FourOperands (OprRegister R.X7,
+                                          OprRegister R.W28,
+                                          OprRegister R.W10,
+                                          OprRegister R.X11))
              [| 0x9buy; 0x2auy; 0x2fuy; 0x87uy |]
 
-      test64 Opcode.SMSUBL (FourOperands (Register R.X7, Register R.W28,
-                                   Register R.W10, Register R.X11))
+      test64 Opcode.SMSUBL (FourOperands (OprRegister R.X7,
+                                          OprRegister R.W28,
+                                          OprRegister R.W10,
+                                          OprRegister R.X11))
              [| 0x9buy; 0x2auy; 0xafuy; 0x87uy |]
 
-      test64 Opcode.SMULH (ThreeOperands (Register R.X7, Register R.X28,
-                                   Register R.X10))
+      test64 Opcode.SMULH (ThreeOperands (OprRegister R.X7,
+                                          OprRegister R.X28,
+                                          OprRegister R.X10))
              [| 0x9buy; 0x4auy; 0x2fuy; 0x87uy |]
 
-      test64 Opcode.UMADDL (FourOperands (Register R.X7, Register R.W28,
-                                   Register R.W10, Register R.X11))
+      test64 Opcode.UMADDL (FourOperands (OprRegister R.X7,
+                                          OprRegister R.W28,
+                                          OprRegister R.W10,
+                                          OprRegister R.X11))
              [| 0x9buy; 0xaauy; 0x2fuy; 0x87uy |]
 
-      test64 Opcode.UMSUBL (FourOperands (Register R.X7, Register R.W28,
-                                   Register R.W10, Register R.X11))
+      test64 Opcode.UMSUBL (FourOperands (OprRegister R.X7,
+                                          OprRegister R.W28,
+                                          OprRegister R.W10,
+                                          OprRegister R.X11))
              [| 0x9buy; 0xaauy; 0xafuy; 0x87uy |]
 
-      test64 Opcode.UMULH (ThreeOperands (Register R.X7, Register R.X28,
-                                   Register R.X10))
+      test64 Opcode.UMULH (ThreeOperands (OprRegister R.X7,
+                                          OprRegister R.X28,
+                                          OprRegister R.X10))
              [| 0x9buy; 0xcauy; 0x2fuy; 0x87uy |]
 
-      test64 Opcode.MNEG (ThreeOperands (Register R.X7, Register R.X28,
-                                  Register R.X10))
+      test64 Opcode.MNEG (ThreeOperands (OprRegister R.X7,
+                                         OprRegister R.X28,
+                                         OprRegister R.X10))
              [| 0x9buy; 0x0auy; 0xffuy; 0x87uy |] (* Alias of MSUB *)
 
-      test64 Opcode.SMULL (ThreeOperands (Register R.X7, Register R.W28,
-                                   Register R.W10))
+      test64 Opcode.SMULL (ThreeOperands (OprRegister R.X7,
+                                          OprRegister R.W28,
+                                          OprRegister R.W10))
              [| 0x9buy; 0x2auy; 0x7fuy; 0x87uy |] (* Alias of SMADDL *)
 
-      test64 Opcode.SMNEGL (ThreeOperands (Register R.X7, Register R.W28,
-                                    Register R.W10))
+      test64 Opcode.SMNEGL (ThreeOperands (OprRegister R.X7,
+                                           OprRegister R.W28,
+                                           OprRegister R.W10))
              [| 0x9buy; 0x2auy; 0xffuy; 0x87uy |] (* Alias of SMSUBL *)
 
-      test64 Opcode.UMULL (ThreeOperands (Register R.X7, Register R.W28,
-                                   Register R.W10))
+      test64 Opcode.UMULL (ThreeOperands (OprRegister R.X7,
+                                          OprRegister R.W28,
+                                          OprRegister R.W10))
              [| 0x9buy; 0xaauy; 0x7fuy; 0x87uy |] (* Alias of UMADDL *)
 
-      test64 Opcode.UMNEGL (ThreeOperands (Register R.X7, Register R.W28,
-                                    Register R.W10))
+      test64 Opcode.UMNEGL (ThreeOperands (OprRegister R.X7,
+                                           OprRegister R.W28,
+                                           OprRegister R.W10))
              [| 0x9buy; 0xaauy; 0xffuy; 0x87uy |] (* Alias of UMSUBL *)
 
     /// C4.5.10 Logical (shifted register)
     [<TestMethod>]
     member __.``[AArch64] Logical (shifted register) Parse Test`` () =
-      test64 Opcode.AND (FourOperands (Register R.X5, Register R.X10, Register R.X24,
-                                Shift (SRTypeLSR, Imm 14L)))
+      test64 Opcode.AND (FourOperands (OprRegister R.X5,
+                                       OprRegister R.X10,
+                                       OprRegister R.X24,
+                                       Shift (SRTypeLSR, Imm 14L)))
              [| 0x8auy; 0x58uy; 0x39uy; 0x45uy |]
 
-      test64 Opcode.ORN (FourOperands (Register R.W26, Register R.W29, Register R.W22,
-                                Shift (SRTypeROR, Imm 7L)))
+      test64 Opcode.ORN (FourOperands (OprRegister R.W26,
+                                       OprRegister R.W29,
+                                       OprRegister R.W22,
+                                       Shift (SRTypeROR, Imm 7L)))
              [| 0x2auy; 0xf6uy; 0x1fuy; 0xbauy |]
 
-      test64 Opcode.MVN (ThreeOperands (Register R.W26, Register R.W22,
-                                 Shift (SRTypeROR, Imm 0x7L)))
+      test64 Opcode.MVN (ThreeOperands (OprRegister R.W26,
+                                        OprRegister R.W22,
+                                        Shift (SRTypeROR, Imm 0x7L)))
              [| 0x2auy; 0xf6uy; 0x1fuy; 0xfauy |]
 
   /// C4.6 Data processing - SIMD and floating point
@@ -1592,35 +2919,35 @@ module ARM64 =
                  [| 0x4euy; 0x18uy; 0x04uy; 0x86uy |]
 
       test64 Opcode.DUP (TwoOperands (SIMDOpr (SFReg (SIMDVecReg (R.V1, TwoD))),
-                               Register R.X3))
+                               OprRegister R.X3))
                  [| 0x4euy; 0x08uy; 0x0cuy; 0x61uy |]
 
       test64 Opcode.DUP (TwoOperands (SIMDOpr (SFReg (SIMDVecReg (R.V28, FourH))),
-                               Register R.WZR)) // Online HEX To ARM Conv error
+                               OprRegister R.WZR)) // Online HEX To ARM Conv error
                  [| 0x0euy; 0x1euy; 0x0fuy; 0xfcuy |]
 
       test64 Opcode.DUP (TwoOperands (SIMDOpr (SFReg (SIMDVecReg (R.V28, FourH))),
-                               Register R.WZR))
+                               OprRegister R.WZR))
                  [| 0x0euy; 0x02uy; 0x0fuy; 0xfcuy |]
 
-      test64 Opcode.SMOV (TwoOperands (Register R.W26,
+      test64 Opcode.SMOV (TwoOperands (OprRegister R.W26,
                                 SIMDOpr (SFReg (sVRegIdx R.V7 VecH 0uy))))
                   [| 0x0euy; 0x02uy; 0x2cuy; 0xfauy |]
 
-      test64 Opcode.UMOV (TwoOperands (Register R.W3,
+      test64 Opcode.UMOV (TwoOperands (OprRegister R.W3,
                                 SIMDOpr (SFReg (sVRegIdx R.V14 VecB 0uy))))
                   [| 0x0euy; 0x01uy; 0x3duy; 0xc3uy |]
 
-      test64 Opcode.MOV (TwoOperands (Register R.W3,
+      test64 Opcode.MOV (TwoOperands (OprRegister R.W3,
                                SIMDOpr (SFReg (sVRegIdx R.V14 VecS 0uy))))
                  [| 0x0euy; 0x04uy; 0x3duy; 0xc3uy |]
 
-      test64 Opcode.MOV (TwoOperands (Register R.X3,
+      test64 Opcode.MOV (TwoOperands (OprRegister R.X3,
                                SIMDOpr (SFReg (sVRegIdx R.V14 VecD 0uy))))
                  [| 0x4euy; 0x08uy; 0x3duy; 0xc3uy |]
 
       test64 Opcode.INS (TwoOperands (SIMDOpr (SFReg (sVRegIdx R.V9 VecS 0uy)),
-                               Register R.W1))
+                               OprRegister R.W1))
                  [| 0x4euy; 0x04uy; 0x1cuy; 0x29uy |]
 
       test64 Opcode.INS (TwoOperands (SIMDOpr (SFReg (sVRegIdx R.V5 VecH 0uy)),
@@ -3733,235 +5060,254 @@ module ARM64 =
     /// C4.6.29 Conversion between floating-point and fixed-point
     [<TestMethod>]
     member __.``[AArch64] Conversion between FP and fixed-pt Parse Test`` () =
-      test64 Opcode.SCVTF (ThreeOperands (scalReg R.S28, Register R.W5, Fbits 0x16uy))
+      test64 Opcode.SCVTF (ThreeOperands (scalReg R.S28,
+                                          OprRegister R.W5, Fbits 0x16uy))
                    [| 0x1euy; 0x02uy; 0xa8uy; 0xbcuy |]
 
-      test64 Opcode.UCVTF (ThreeOperands (scalReg R.S5, Register R.W5, Fbits 2uy))
+      test64 Opcode.UCVTF (ThreeOperands (scalReg R.S5,
+                                          OprRegister R.W5, Fbits 2uy))
                    [| 0x1euy; 0x03uy; 0xf8uy; 0xa5uy |]
 
-      test64 Opcode.FCVTZS (ThreeOperands (Register R.W17, scalReg R.S4, Fbits 1uy))
+      test64 Opcode.FCVTZS (ThreeOperands (OprRegister R.W17,
+                                           scalReg R.S4, Fbits 1uy))
                     [| 0x1euy; 0x18uy; 0xfcuy; 0x91uy |]
 
-      test64 Opcode.FCVTZU (ThreeOperands (Register R.W5, scalReg R.S14, Fbits 0x1Fuy))
+      test64 Opcode.FCVTZU (ThreeOperands (OprRegister R.W5,
+                                           scalReg R.S14, Fbits 0x1Fuy))
                     [| 0x1euy; 0x19uy; 0x85uy; 0xc5uy |]
 
-      test64 Opcode.SCVTF (ThreeOperands (scalReg R.D5, Register R.W14, Fbits 0xFuy))
+      test64 Opcode.SCVTF (ThreeOperands (scalReg R.D5,
+                                          OprRegister R.W14, Fbits 0xFuy))
                    [| 0x1euy; 0x42uy; 0xc5uy; 0xc5uy |]
 
-      test64 Opcode.UCVTF (ThreeOperands (scalReg R.D5, Register R.W14, Fbits 0x17uy))
+      test64 Opcode.UCVTF (ThreeOperands (scalReg R.D5,
+                                          OprRegister R.W14, Fbits 0x17uy))
                    [| 0x1euy; 0x43uy; 0xa5uy; 0xc5uy |]
 
-      test64 Opcode.FCVTZS (ThreeOperands (Register R.W5, scalReg R.D14, Fbits 0x1Buy))
+      test64 Opcode.FCVTZS (ThreeOperands (OprRegister R.W5,
+                                           scalReg R.D14, Fbits 0x1Buy))
                     [| 0x1euy; 0x58uy; 0x95uy; 0xc5uy |]
 
-      test64 Opcode.FCVTZU (ThreeOperands (Register R.W5, scalReg R.D26, Fbits 0x16uy))
+      test64 Opcode.FCVTZU (ThreeOperands (OprRegister R.W5,
+                                           scalReg R.D26, Fbits 0x16uy))
                     [| 0x1euy; 0x59uy; 0xabuy; 0x45uy |]
 
-      test64 Opcode.SCVTF (ThreeOperands (scalReg R.S17, Register R.X6, Fbits 0xFuy))
+      test64 Opcode.SCVTF (ThreeOperands (scalReg R.S17,
+                                          OprRegister R.X6, Fbits 0xFuy))
                    [| 0x9euy; 0x02uy; 0xc4uy; 0xd1uy |]
 
-      test64 Opcode.UCVTF (ThreeOperands (scalReg R.S5, Register R.X13, Fbits 0x13uy))
+      test64 Opcode.UCVTF (ThreeOperands (scalReg R.S5,
+                                          OprRegister R.X13, Fbits 0x13uy))
                    [| 0x9euy; 0x03uy; 0xb5uy; 0xa5uy |]
 
-      test64 Opcode.FCVTZS (ThreeOperands (Register R.X13, scalReg R.S6, Fbits 4uy))
+      test64 Opcode.FCVTZS (ThreeOperands (OprRegister R.X13,
+                                           scalReg R.S6, Fbits 4uy))
                     [| 0x9euy; 0x18uy; 0xf0uy; 0xcduy |]
 
-      test64 Opcode.FCVTZU (ThreeOperands (Register R.X13, scalReg R.S14,
-                                    Fbits 0x1Buy))
+      test64 Opcode.FCVTZU (ThreeOperands (OprRegister R.X13,
+                                           scalReg R.S14,
+                                           Fbits 0x1Buy))
                     [| 0x9euy; 0x19uy; 0x95uy; 0xcduy |]
 
-      test64 Opcode.SCVTF (ThreeOperands (scalReg R.D5, Register R.X28, Fbits 0x1Euy))
+      test64 Opcode.SCVTF (ThreeOperands (scalReg R.D5,
+                                          OprRegister R.X28, Fbits 0x1Euy))
                    [| 0x9euy; 0x42uy; 0x8buy; 0x85uy |]
 
-      test64 Opcode.UCVTF (ThreeOperands (scalReg R.D5, Register R.X14, Fbits 0xFuy))
+      test64 Opcode.UCVTF (ThreeOperands (scalReg R.D5,
+                                          OprRegister R.X14, Fbits 0xFuy))
                    [| 0x9euy; 0x43uy; 0xc5uy; 0xc5uy |]
 
-      test64 Opcode.FCVTZS (ThreeOperands (Register R.X17, scalReg R.D22, Fbits 7uy))
+      test64 Opcode.FCVTZS (ThreeOperands (OprRegister R.X17,
+                                           scalReg R.D22, Fbits 7uy))
                     [| 0x9euy; 0x58uy; 0xe6uy; 0xd1uy |]
 
-      test64 Opcode.FCVTZU (ThreeOperands (Register R.X18, scalReg R.D14, Fbits 0xCuy))
+      test64 Opcode.FCVTZU (ThreeOperands (OprRegister R.X18,
+                                           scalReg R.D14, Fbits 0xCuy))
                     [| 0x9euy; 0x59uy; 0xd1uy; 0xd2uy |]
 
     /// C4.6.30 Conversion between floating-point and integer
     [<TestMethod>]
     member __.``[AArch64] Conversion between FP and integer Parse Test`` () =
-      test64 Opcode.FCVTNS (TwoOperands (Register R.W20, scalReg R.S10))
+      test64 Opcode.FCVTNS (TwoOperands (OprRegister R.W20, scalReg R.S10))
                     [| 0x1euy; 0x20uy; 0x01uy; 0x54uy |]
 
-      test64 Opcode.FCVTNS (TwoOperands (Register R.W10, scalReg R.D26))
+      test64 Opcode.FCVTNS (TwoOperands (OprRegister R.W10, scalReg R.D26))
                     [| 0x1euy; 0x60uy; 0x03uy; 0x4auy |]
 
-      test64 Opcode.FCVTNS (TwoOperands (Register R.X2, scalReg R.S11 ))
+      test64 Opcode.FCVTNS (TwoOperands (OprRegister R.X2, scalReg R.S11 ))
                     [| 0x9euy; 0x20uy; 0x01uy; 0x62uy |]
 
-      test64 Opcode.FCVTNS (TwoOperands (Register R.X23, scalReg R.D18))
+      test64 Opcode.FCVTNS (TwoOperands (OprRegister R.X23, scalReg R.D18))
                     [| 0x9euy; 0x60uy; 0x02uy; 0x57uy |]
 
-      test64 Opcode.FCVTNU (TwoOperands (Register R.W24, scalReg R.S5 ))
+      test64 Opcode.FCVTNU (TwoOperands (OprRegister R.W24, scalReg R.S5 ))
                     [| 0x1euy; 0x21uy; 0x00uy; 0xb8uy |]
 
-      test64 Opcode.FCVTNU (TwoOperands (Register R.W18, scalReg R.D21))
+      test64 Opcode.FCVTNU (TwoOperands (OprRegister R.W18, scalReg R.D21))
                     [| 0x1euy; 0x61uy; 0x02uy; 0xb2uy |]
 
-      test64 Opcode.FCVTNU (TwoOperands (Register R.X27, scalReg R.S5 ))
+      test64 Opcode.FCVTNU (TwoOperands (OprRegister R.X27, scalReg R.S5 ))
                     [| 0x9euy; 0x21uy; 0x00uy; 0xbbuy |]
 
-      test64 Opcode.FCVTNU (TwoOperands (Register R.X28, scalReg R.D13))
+      test64 Opcode.FCVTNU (TwoOperands (OprRegister R.X28, scalReg R.D13))
                     [| 0x9euy; 0x61uy; 0x01uy; 0xbcuy |]
 
-      test64 Opcode.SCVTF (TwoOperands (scalReg R.S26, Register R.W5))
+      test64 Opcode.SCVTF (TwoOperands (scalReg R.S26, OprRegister R.W5))
                    [| 0x1euy; 0x22uy; 0x00uy; 0xbauy |]
 
-      test64 Opcode.SCVTF (TwoOperands (scalReg R.D8, Register R.W15))
+      test64 Opcode.SCVTF (TwoOperands (scalReg R.D8, OprRegister R.W15))
                    [| 0x1euy; 0x62uy; 0x01uy; 0xe8uy |]
 
-      test64 Opcode.SCVTF (TwoOperands (scalReg R.S2, Register R.X14))
+      test64 Opcode.SCVTF (TwoOperands (scalReg R.S2, OprRegister R.X14))
                    [| 0x9euy; 0x22uy; 0x01uy; 0xc2uy |]
 
-      test64 Opcode.SCVTF (TwoOperands (scalReg R.D29, Register R.X14))
+      test64 Opcode.SCVTF (TwoOperands (scalReg R.D29, OprRegister R.X14))
                    [| 0x9euy; 0x62uy; 0x01uy; 0xdduy |]
 
-      test64 Opcode.UCVTF (TwoOperands (scalReg R.S29, Register R.W21))
+      test64 Opcode.UCVTF (TwoOperands (scalReg R.S29, OprRegister R.W21))
                    [| 0x1euy; 0x23uy; 0x02uy; 0xbduy |]
 
-      test64 Opcode.UCVTF (TwoOperands (scalReg R.D7, Register R.W14))
+      test64 Opcode.UCVTF (TwoOperands (scalReg R.D7, OprRegister R.W14))
                    [| 0x1euy; 0x63uy; 0x01uy; 0xc7uy |]
 
-      test64 Opcode.UCVTF (TwoOperands (scalReg R.S30, Register R.X14))
+      test64 Opcode.UCVTF (TwoOperands (scalReg R.S30, OprRegister R.X14))
                    [| 0x9euy; 0x23uy; 0x01uy; 0xdeuy |]
 
-      test64 Opcode.UCVTF (TwoOperands (scalReg R.D25, Register R.X21))
+      test64 Opcode.UCVTF (TwoOperands (scalReg R.D25, OprRegister R.X21))
                    [| 0x9euy; 0x63uy; 0x02uy; 0xb9uy |]
 
-      test64 Opcode.FCVTAS (TwoOperands (Register R.W10, scalReg R.S12))
+      test64 Opcode.FCVTAS (TwoOperands (OprRegister R.W10, scalReg R.S12))
                     [| 0x1euy; 0x24uy; 0x01uy; 0x8auy |]
 
-      test64 Opcode.FCVTAS (TwoOperands (Register R.W25, scalReg R.D20))
+      test64 Opcode.FCVTAS (TwoOperands (OprRegister R.W25, scalReg R.D20))
                     [| 0x1euy; 0x64uy; 0x02uy; 0x99uy |]
 
-      test64 Opcode.FCVTAS (TwoOperands (Register R.X21, scalReg R.S18))
+      test64 Opcode.FCVTAS (TwoOperands (OprRegister R.X21, scalReg R.S18))
                     [| 0x9euy; 0x24uy; 0x02uy; 0x55uy |]
 
-      test64 Opcode.FCVTAS (TwoOperands (Register R.X24, scalReg R.D25))
+      test64 Opcode.FCVTAS (TwoOperands (OprRegister R.X24, scalReg R.D25))
                     [| 0x9euy; 0x64uy; 0x03uy; 0x38uy |]
 
-      test64 Opcode.FCVTAU (TwoOperands (Register R.W29, scalReg R.S26))
+      test64 Opcode.FCVTAU (TwoOperands (OprRegister R.W29, scalReg R.S26))
                     [| 0x1euy; 0x25uy; 0x03uy; 0x5duy |]
 
-      test64 Opcode.FCVTAU (TwoOperands (Register R.W5, scalReg R.D26))
+      test64 Opcode.FCVTAU (TwoOperands (OprRegister R.W5, scalReg R.D26))
                     [| 0x1euy; 0x65uy; 0x03uy; 0x45uy |]
 
-      test64 Opcode.FCVTAU (TwoOperands (Register R.X17, scalReg R.S24))
+      test64 Opcode.FCVTAU (TwoOperands (OprRegister R.X17, scalReg R.S24))
                     [| 0x9euy; 0x25uy; 0x03uy; 0x11uy |]
 
-      test64 Opcode.FCVTAU (TwoOperands (Register R.X20, scalReg R.D27))
+      test64 Opcode.FCVTAU (TwoOperands (OprRegister R.X20, scalReg R.D27))
                     [| 0x9euy; 0x65uy; 0x03uy; 0x74uy |]
 
-      test64 Opcode.FMOV (TwoOperands (Register R.W14, scalReg R.S25))
+      test64 Opcode.FMOV (TwoOperands (OprRegister R.W14, scalReg R.S25))
                   [| 0x1euy; 0x26uy; 0x03uy; 0x2euy |]
 
-      test64 Opcode.FMOV (TwoOperands (scalReg R.S3, Register R.W14))
+      test64 Opcode.FMOV (TwoOperands (scalReg R.S3, OprRegister R.W14))
                   [| 0x1euy; 0x27uy; 0x01uy; 0xc3uy |]
 
-      test64 Opcode.FMOV (TwoOperands (Register R.X11, scalReg R.D21))
+      test64 Opcode.FMOV (TwoOperands (OprRegister R.X11, scalReg R.D21))
                   [| 0x9euy; 0x66uy; 0x02uy; 0xabuy |]
 
-      test64 Opcode.FMOV (TwoOperands (scalReg R.D3, Register R.X15))
+      test64 Opcode.FMOV (TwoOperands (scalReg R.D3, OprRegister R.X15))
                   [| 0x9euy; 0x67uy; 0x01uy; 0xe3uy |]
 
-      test64 Opcode.FMOV (TwoOperands (Register R.X29,
+      test64 Opcode.FMOV (TwoOperands (OprRegister R.X29,
                                 SIMDOpr (SFReg (sVRegIdx R.V16 VecD 1uy))))
                   [| 0x9euy; 0xaeuy; 0x02uy; 0x1duy |]
 
       test64 Opcode.FMOV (TwoOperands (SIMDOpr (SFReg (sVRegIdx R.V24 VecD 1uy)),
-                                Register R.X23))
+                                OprRegister R.X23))
                   [| 0x9euy; 0xafuy; 0x02uy; 0xf8uy |]
 
-      test64 Opcode.FCVTPS (TwoOperands (Register R.W14, scalReg R.S6))
+      test64 Opcode.FCVTPS (TwoOperands (OprRegister R.W14, scalReg R.S6))
                     [| 0x1euy; 0x28uy; 0x00uy; 0xceuy |]
 
-      test64 Opcode.FCVTPS (TwoOperands (Register R.W6, scalReg R.D3))
+      test64 Opcode.FCVTPS (TwoOperands (OprRegister R.W6, scalReg R.D3))
                     [| 0x1euy; 0x68uy; 0x00uy; 0x66uy |]
 
-      test64 Opcode.FCVTPS (TwoOperands (Register R.X3, scalReg R.S17))
+      test64 Opcode.FCVTPS (TwoOperands (OprRegister R.X3, scalReg R.S17))
                     [| 0x9euy; 0x28uy; 0x02uy; 0x23uy |]
 
-      test64 Opcode.FCVTPS (TwoOperands (Register R.X26, scalReg R.D27))
+      test64 Opcode.FCVTPS (TwoOperands (OprRegister R.X26, scalReg R.D27))
                     [| 0x9euy; 0x68uy; 0x03uy; 0x7auy |]
 
-      test64 Opcode.FCVTPU (TwoOperands (Register R.W28, scalReg R.S16))
+      test64 Opcode.FCVTPU (TwoOperands (OprRegister R.W28, scalReg R.S16))
                     [| 0x1euy; 0x29uy; 0x02uy; 0x1cuy |]
 
-      test64 Opcode.FCVTPU (TwoOperands (Register R.W19, scalReg R.D9))
+      test64 Opcode.FCVTPU (TwoOperands (OprRegister R.W19, scalReg R.D9))
                     [| 0x1euy; 0x69uy; 0x01uy; 0x33uy |]
 
-      test64 Opcode.FCVTPU (TwoOperands (Register R.X9, scalReg R.S3))
+      test64 Opcode.FCVTPU (TwoOperands (OprRegister R.X9, scalReg R.S3))
                     [| 0x9euy; 0x29uy; 0x00uy; 0x69uy |]
 
-      test64 Opcode.FCVTPU (TwoOperands (Register R.X21, scalReg R.D19))
+      test64 Opcode.FCVTPU (TwoOperands (OprRegister R.X21, scalReg R.D19))
                     [| 0x9euy; 0x69uy; 0x02uy; 0x75uy |]
 
-      test64 Opcode.FCVTMS (TwoOperands (Register R.W29, scalReg R.S14))
+      test64 Opcode.FCVTMS (TwoOperands (OprRegister R.W29, scalReg R.S14))
                     [| 0x1euy; 0x30uy; 0x01uy; 0xdduy |]
 
-      test64 Opcode.FCVTMS (TwoOperands (Register R.W2, scalReg R.D27))
+      test64 Opcode.FCVTMS (TwoOperands (OprRegister R.W2, scalReg R.D27))
                     [| 0x1euy; 0x70uy; 0x03uy; 0x62uy |]
 
-      test64 Opcode.FCVTMS (TwoOperands (Register R.X25, scalReg R.S3))
+      test64 Opcode.FCVTMS (TwoOperands (OprRegister R.X25, scalReg R.S3))
                     [| 0x9euy; 0x30uy; 0x00uy; 0x79uy |]
 
-      test64 Opcode.FCVTMS (TwoOperands (Register R.X6, scalReg R.D4))
+      test64 Opcode.FCVTMS (TwoOperands (OprRegister R.X6, scalReg R.D4))
                     [| 0x9euy; 0x70uy; 0x00uy; 0x86uy |]
 
-      test64 Opcode.FCVTMU (TwoOperands (Register R.W5, scalReg R.S12))
+      test64 Opcode.FCVTMU (TwoOperands (OprRegister R.W5, scalReg R.S12))
                     [| 0x1euy; 0x31uy; 0x01uy; 0x85uy |]
 
-      test64 Opcode.FCVTMU (TwoOperands (Register R.W29, scalReg R.D19))
+      test64 Opcode.FCVTMU (TwoOperands (OprRegister R.W29, scalReg R.D19))
                     [| 0x1euy; 0x71uy; 0x02uy; 0x7duy |]
 
-      test64 Opcode.FCVTMU (TwoOperands (Register R.XZR, scalReg R.S31))
+      test64 Opcode.FCVTMU (TwoOperands (OprRegister R.XZR, scalReg R.S31))
                     [| 0x9euy; 0x31uy; 0x03uy; 0xffuy |]
 
-      test64 Opcode.FCVTMU (TwoOperands (Register R.X0, scalReg R.D0))
+      test64 Opcode.FCVTMU (TwoOperands (OprRegister R.X0, scalReg R.D0))
                     [| 0x9euy; 0x71uy; 0x00uy; 0x00uy |]
 
-      test64 Opcode.FCVTZS (TwoOperands (Register R.W3, scalReg R.S26))
+      test64 Opcode.FCVTZS (TwoOperands (OprRegister R.W3, scalReg R.S26))
                     [| 0x1euy; 0x38uy; 0x03uy; 0x43uy |]
 
-      test64 Opcode.FCVTZS (TwoOperands (Register R.W13, scalReg R.D6))
+      test64 Opcode.FCVTZS (TwoOperands (OprRegister R.W13, scalReg R.D6))
                     [| 0x1euy; 0x78uy; 0x00uy; 0xcduy |]
 
-      test64 Opcode.FCVTZS (TwoOperands (Register R.X25, scalReg R.S19))
+      test64 Opcode.FCVTZS (TwoOperands (OprRegister R.X25, scalReg R.S19))
                     [| 0x9euy; 0x38uy; 0x02uy; 0x79uy |]
 
-      test64 Opcode.FCVTZS (TwoOperands (Register R.X6, scalReg R.D10))
+      test64 Opcode.FCVTZS (TwoOperands (OprRegister R.X6, scalReg R.D10))
                     [| 0x9euy; 0x78uy; 0x01uy; 0x46uy |]
 
-      test64 Opcode.FCVTZU (TwoOperands (Register R.W1, scalReg R.S19))
+      test64 Opcode.FCVTZU (TwoOperands (OprRegister R.W1, scalReg R.S19))
                     [| 0x1euy; 0x39uy; 0x02uy; 0x61uy |]
 
-      test64 Opcode.FCVTZU (TwoOperands (Register R.W27, scalReg R.D25))
+      test64 Opcode.FCVTZU (TwoOperands (OprRegister R.W27, scalReg R.D25))
                     [| 0x1euy; 0x79uy; 0x03uy; 0x3buy |]
 
-      test64 Opcode.FCVTZU (TwoOperands (Register R.X19, scalReg R.S2))
+      test64 Opcode.FCVTZU (TwoOperands (OprRegister R.X19, scalReg R.S2))
                     [| 0x9euy; 0x39uy; 0x00uy; 0x53uy |]
 
-      test64 Opcode.FCVTZU (TwoOperands (Register R.X2, scalReg R.D19))
+      test64 Opcode.FCVTZU (TwoOperands (OprRegister R.X2, scalReg R.D19))
                     [| 0x9euy; 0x79uy; 0x02uy; 0x62uy |]
 
 module ARMThumb =
   open B2R2.FrontEnd.ARM32
 
-  let private test arch endian cond op q (simd: SIMDDataType option) oprs bs =
+  let private test arch endian cond op w q (simd: SIMDDataType option) oprs bs =
     let reader = BinReader.Init (bs, endian)
-    let ins = Parser.parse reader arch ArchOperationMode.ThumbMode 0UL 0 0uy
+    let ctxt = new ParsingContext (ArchOperationMode.ThumbMode)
+    let ins = Parser.parse reader ctxt arch 0UL 0
     let cond' = ins.Info.Condition
     let opcode' = ins.Info.Opcode
-    let oprs' = ins.Info.Operands
+    let wback' = ins.Info.WriteBack
     let q' = ins.Info.Qualifier
     let simd' = ins.Info.SIMDTyp
+    let oprs' = ins.Info.Operands
     Assert.AreEqual (cond', cond)
     Assert.AreEqual (opcode', op)
+    Assert.AreEqual (wback', w)
     Assert.AreEqual (q', q)
     Assert.AreEqual (simd', simd)
     Assert.AreEqual (oprs', oprs)
@@ -3973,45 +5319,45 @@ module ARMThumb =
   type BranchClass () =
     [<TestMethod>]
     member __.``[Thumb] Branch Parse Test`` () =
-      testThumb (Some Condition.HI) Op.B (Some N) None
-                (OneOperand (Memory (LiteralMode 76L)))
+      testThumb (Some Condition.HI) Op.B None (Some N) None
+                (OneOperand (OprMemory (LiteralMode 76L)))
                 [| 0xd8uy; 0x26uy |]
 
-      testThumb (Some Condition.AL) Op.B (Some N) None
-                (OneOperand (Memory (LiteralMode 776L)))
+      testThumb (Some Condition.AL) Op.B None (Some N) None
+                (OneOperand (OprMemory (LiteralMode 776L)))
                 [| 0xe1uy; 0x84uy |]
 
-      testThumb (Some Condition.LS) Op.B (Some W) None
-                (OneOperand (Memory (LiteralMode 4294652108L)))
+      testThumb (Some Condition.LS) Op.B None (Some W) None
+                (OneOperand (OprMemory (LiteralMode 4294652108L)))
                 [| 0xf6uy; 0x73uy; 0x88uy; 0x66uy |]
 
-      testThumb (Some Condition.AL) Op.B (Some W) None
-                (OneOperand (Memory (LiteralMode 12780328L)))
+      testThumb (Some Condition.AL) Op.B None (Some W) None
+                (OneOperand (OprMemory (LiteralMode 12780328L)))
                 [| 0xf0uy; 0x30uy; 0x91uy; 0x94uy |]
 
-      testThumb None Op.CBNZ None None
-                (TwoOperands (Register R.R2,
-                              Memory (LiteralMode 6L)))
+      testThumb None Op.CBNZ None None None
+                (TwoOperands (OprReg R.R2,
+                              OprMemory (LiteralMode 6L)))
                 [| 0xb9uy; 0x1auy |]
 
-      testThumb (Some Condition.AL) Op.BLX None None
-                (OneOperand (Register R.SB))
+      testThumb (Some Condition.AL) Op.BLX None None None
+                (OneOperand (OprReg R.SB))
                 [| 0x47uy; 0xc8uy |]
 
-      testThumb (Some Condition.AL) Op.BLX None None
-                (OneOperand (Memory (LiteralMode 4286800648L)))
+      testThumb (Some Condition.AL) Op.BLX None None None
+                (OneOperand (OprMemory (LiteralMode 4286800648L)))
                 [| 0xf4uy; 0x36uy; 0xe1uy; 0x84uy |]
 
-      testThumb (Some Condition.AL) Op.BX None None
-                (OneOperand (Register R.R3))
+      testThumb (Some Condition.AL) Op.BX None None None
+                (OneOperand (OprReg R.R3))
                 [| 0x47uy; 0x18uy |]
 
-      testThumb (Some Condition.AL) Op.BXJ None None
-                (OneOperand (Register R.R5))
+      testThumb (Some Condition.AL) Op.BXJ None None None
+                (OneOperand (OprReg R.R5))
                 [| 0xf3uy; 0xc5uy; 0x8fuy; 0x00uy |]
 
-      testThumb (Some Condition.AL) Op.TBH None None
-                (OneOperand (Memory (OffsetMode
+      testThumb (Some Condition.AL) Op.TBH None None None
+                (OneOperand (OprMemory (OffsetMode
                                        (RegOffset (R.LR, None, R.R7,
                                           Some (SRTypeLSL, Imm 1u))))))
                 [| 0xe8uy; 0xdeuy; 0xf0uy; 0x17uy |]
@@ -4022,323 +5368,323 @@ module ARMThumb =
     /// A4.4.1 Standard data-processing instructions
     [<TestMethod>]
     member __.``[Thumb] Standard data-processing Parse Test`` () =
-      testThumb (Some Condition.AL) Op.ADCS None None
-                (ThreeOperands (Register R.R3, Register R.R2, Immediate 159383552L))
+      testThumb (Some Condition.AL) Op.ADCS None None None
+                (ThreeOperands (OprReg R.R3, OprReg R.R2, OprImm 159383552L))
                 [| 0xf1uy; 0x52uy; 0x63uy; 0x18uy |]
 
-      testThumb (Some Condition.AL) Op.ADD None None
-                (ThreeOperands (Register R.IP, Register R.SP, Register R.IP))
+      testThumb (Some Condition.AL) Op.ADD None None None
+                (ThreeOperands (OprReg R.IP, OprReg R.SP, OprReg R.IP))
                 [| 0x44uy; 0xecuy |]
 
-      testThumb (Some Condition.AL) Op.ADD None None
-                (TwoOperands (Register R.SP, Register R.SL))
+      testThumb (Some Condition.AL) Op.ADD None None None
+                (TwoOperands (OprReg R.SP, OprReg R.SL))
                 [| 0x44uy; 0xd5uy |]
 
-      testThumb (Some Condition.AL) Op.ADD None None
-                (TwoOperands (Register R.FP, Register R.R1))
+      testThumb (Some Condition.AL) Op.ADD None None None
+                (TwoOperands (OprReg R.FP, OprReg R.R1))
                 [| 0x44uy; 0x8buy |]
 
-      testThumb (Some Condition.AL) Op.ADD None None
-                (ThreeOperands (Register R.SP, Register R.SP, Immediate 408L))
+      testThumb (Some Condition.AL) Op.ADD None None None
+                (ThreeOperands (OprReg R.SP, OprReg R.SP, OprImm 408L))
                 [| 0xb0uy; 0x66uy |]
 
-      testThumb (Some Condition.AL) Op.ADD None None
-                (ThreeOperands (Register R.R4, Register R.SP, Immediate 160L))
+      testThumb (Some Condition.AL) Op.ADD None None None
+                (ThreeOperands (OprReg R.R4, OprReg R.SP, OprImm 160L))
                 [| 0xacuy; 0x28uy |]
 
-      testThumb (Some Condition.AL) Op.ADD (Some W) None
-                (ThreeOperands (Register R.LR, Register R.R4, Immediate 1L))
+      testThumb (Some Condition.AL) Op.ADD None (Some W) None
+                (ThreeOperands (OprReg R.LR, OprReg R.R4, OprImm 1L))
                 [| 0xf1uy; 0x04uy; 0x0euy; 0x01uy |]
 
-      testThumb None Op.ADDS None None
-                (ThreeOperands (Register R.R4, Register R.R1, Register R.R0))
+      testThumb None Op.ADDS None None None
+                (ThreeOperands (OprReg R.R4, OprReg R.R1, OprReg R.R0))
                 [| 0x18uy; 0x0cuy |]
 
-      testThumb None Op.ADDS None None
-                (ThreeOperands (Register R.R7, Register R.R6, Immediate 1L))
+      testThumb None Op.ADDS None None None
+                (ThreeOperands (OprReg R.R7, OprReg R.R6, OprImm 1L))
                 [| 0x1cuy; 0x77uy |]
 
-      testThumb (Some Condition.AL) Op.ADDW None None
-                (ThreeOperands (Register R.R0, Register R.PC, Immediate 1L))
+      testThumb (Some Condition.AL) Op.ADDW None None None
+                (ThreeOperands (OprReg R.R0, OprReg R.PC, OprImm 1L))
                 [| 0xf2uy; 0x0fuy; 0x00uy; 0x01uy |]
 
-      testThumb (Some Condition.AL) Op.ADR None None
-                (TwoOperands (Register R.R2,
-                              Memory (LiteralMode 60L)))
+      testThumb (Some Condition.AL) Op.ADR None None None
+                (TwoOperands (OprReg R.R2,
+                              OprMemory (LiteralMode 60L)))
                 [| 0xa2uy; 0x0fuy |]
 
-      testThumb None Op.ANDS None None
-                (TwoOperands (Register R.R6, Register R.R7))
+      testThumb None Op.ANDS None None None
+                (TwoOperands (OprReg R.R6, OprReg R.R7))
                 [| 0x40uy; 0x3euy |]
 
-      testThumb (Some Condition.AL) Op.BICS (Some W) None
-                (FourOperands (Register R.R6, Register R.IP, Register R.R5,
-                               Shift (SRTypeLSL, Imm 28u)))
+      testThumb (Some Condition.AL) Op.BICS None (Some W) None
+                (FourOperands (OprReg R.R6, OprReg R.IP, OprReg R.R5,
+                               OprShift (SRTypeLSL, Imm 28u)))
                 [| 0xeauy; 0x3cuy; 0x76uy; 0x05uy |]
 
-      testThumb (Some Condition.AL) Op.CMP None None
-                (TwoOperands (Register R.R5, Immediate 243L))
+      testThumb (Some Condition.AL) Op.CMP None None None
+                (TwoOperands (OprReg R.R5, OprImm 243L))
                 [| 0x2duy; 0xf3uy |]
 
-      testThumb (Some Condition.AL) Op.CMP None None
-                (TwoOperands (Register R.R8, Register R.SB))
+      testThumb (Some Condition.AL) Op.CMP None None None
+                (TwoOperands (OprReg R.R8, OprReg R.SB))
                 [| 0x45uy; 0xc8uy |]
 
-      testThumb (Some Condition.AL) Op.CMP None None
-                (TwoOperands (Register R.R4, Register R.R8))
+      testThumb (Some Condition.AL) Op.CMP None None None
+                (TwoOperands (OprReg R.R4, OprReg R.R8))
                 [| 0x45uy; 0x44uy |]
 
-      testThumb (Some Condition.AL) Op.MOV (Some W) None
-                (TwoOperands (Register R.R7, Immediate 134217728L))
+      testThumb (Some Condition.AL) Op.MOV None (Some W) None
+                (TwoOperands (OprReg R.R7, OprImm 524296L))
                 [| 0xf0uy; 0x4fuy; 0x17uy; 0x08uy |]
 
-      testThumb None Op.MOVS None None
-                (TwoOperands (Register R.R6, Register R.R1))
+      testThumb None Op.MOVS None None None
+                (TwoOperands (OprReg R.R6, OprReg R.R1))
                 [| 0x00uy; 0x0euy |]
 
-      testThumb (Some Condition.AL) Op.MOVW None None
-                (TwoOperands (Register R.FP, Immediate 10242L))
+      testThumb (Some Condition.AL) Op.MOVW None None None
+                (TwoOperands (OprReg R.FP, OprImm 10242L))
                 [| 0xf6uy; 0x42uy; 0x0buy; 0x02uy |]
 
-      testThumb (Some Condition.AL) Op.MVN (Some W) None
-                (ThreeOperands (Register R.R4, Register R.LR, Shift (SRTypeLSR,
-                                                                 Imm 30u)))
+      testThumb (Some Condition.AL) Op.MVN None (Some W) None
+                (ThreeOperands (OprReg R.R4, OprReg R.LR,
+                                OprShift (SRTypeLSR, Imm 30u)))
 
                 [| 0xeauy; 0x6fuy; 0xf4uy; 0x9euy |]
 
-      testThumb (Some Condition.AL) Op.RSBS (Some W) None
-                (ThreeOperands (Register R.R3, Register R.SB, Immediate 8912896L))
+      testThumb (Some Condition.AL) Op.RSBS None (Some W) None
+                (ThreeOperands (OprReg R.R3, OprReg R.SB, OprImm 8912896L))
                 [| 0xf5uy; 0xd9uy; 0x03uy; 0x08uy |]
 
-      testThumb None Op.RSBS None None
-                (ThreeOperands (Register R.R3, Register R.R1, Immediate 0L))
+      testThumb None Op.RSBS None None None
+                (ThreeOperands (OprReg R.R3, OprReg R.R1, OprImm 0L))
                 [| 0x42uy; 0x4buy |]
 
-      testThumb (Some Condition.AL) Op.TEQ None None
-                (TwoOperands (Register R.R1, Immediate 17408L))
+      testThumb (Some Condition.AL) Op.TEQ None None None
+                (TwoOperands (OprReg R.R1, OprImm 17408L))
                 [| 0xf4uy; 0x91uy; 0x4fuy; 0x88uy |]
 
-      testThumb (Some Condition.AL) Op.TST (Some W) None
-                (ThreeOperands (Register R.R2, Register R.FP, Shift (SRTypeASR,
-                                                                 Imm 21u)))
+      testThumb (Some Condition.AL) Op.TST None (Some W) None
+                (ThreeOperands (OprReg R.R2, OprReg R.FP,
+                                OprShift (SRTypeASR, Imm 21u)))
                 [| 0xeauy; 0x12uy; 0x5fuy; 0x6buy |]
 
     /// A4.4.2 Shift instructions
     [<TestMethod>]
     member __.``[Thumb] Shift Parse Test`` () =
-      testThumb (Some Condition.AL) Op.ASRS (Some W) None
-                (ThreeOperands (Register R.FP, Register R.SL, Register R.R7))
+      testThumb (Some Condition.AL) Op.ASRS None (Some W) None
+                (ThreeOperands (OprReg R.FP, OprReg R.SL, OprReg R.R7))
                 [| 0xfauy; 0x5auy; 0xfbuy; 0x07uy |]
 
-      testThumb None Op.LSLS None None
-                (ThreeOperands (Register R.R1, Register R.R6, Immediate 16L))
+      testThumb None Op.LSLS None None None
+                (ThreeOperands (OprReg R.R1, OprReg R.R6, OprImm 16L))
                 [| 0x04uy; 0x31uy |]
 
-      testThumb None Op.LSRS None None
-                (ThreeOperands (Register R.R2, Register R.R1, Immediate 32L))
+      testThumb None Op.LSRS None None None
+                (ThreeOperands (OprReg R.R2, OprReg R.R1, OprImm 32L))
                 [| 0x08uy; 0x0auy |]
 
-      testThumb (Some Condition.AL) Op.LSRS (Some W) None
-                (ThreeOperands (Register R.IP, Register R.SL, Immediate 3L))
+      testThumb (Some Condition.AL) Op.LSRS None (Some W) None
+                (ThreeOperands (OprReg R.IP, OprReg R.SL, OprImm 3L))
                 [| 0xeauy; 0x5fuy; 0x0cuy; 0xdauy |]
 
-      testThumb (Some Condition.AL) Op.RRXS None None
-                (TwoOperands (Register R.R0, Register R.SB))
+      testThumb (Some Condition.AL) Op.RRXS None None None
+                (TwoOperands (OprReg R.R0, OprReg R.SB))
                 [| 0xeauy; 0x5fuy; 0x00uy; 0x39uy |]
 
     /// A4.4.3 Multiply instructions
     member __.``[Thumb] Multiply Parse Test`` () =
-      testThumb (Some Condition.AL) Op.MLA None None
-                (FourOperands (Register R.SB, Register R.R0, Register R.R1,
-                               Register R.IP))
+      testThumb (Some Condition.AL) Op.MLA None None None
+                (FourOperands (OprReg R.SB, OprReg R.R0, OprReg R.R1,
+                               OprReg R.IP))
                 [| 0xfbuy; 0x00uy; 0xc9uy; 0x01uy |]
 
-      testThumb (Some Condition.AL) Op.MUL None None
-                (ThreeOperands (Register R.IP, Register R.R3, Register R.FP))
+      testThumb (Some Condition.AL) Op.MUL None None None
+                (ThreeOperands (OprReg R.IP, OprReg R.R3, OprReg R.FP))
                 [| 0xfbuy; 0x03uy; 0xfcuy; 0x0buy |]
 
-      testThumb None Op.MULS None None
-                (ThreeOperands (Register R.R6, Register R.R4, Register R.R6))
+      testThumb None Op.MULS None None None
+                (ThreeOperands (OprReg R.R6, OprReg R.R4, OprReg R.R6))
                 [| 0x43uy; 0x66uy |]
 
-      testThumb (Some Condition.AL) Op.SMLADX None None
-                (FourOperands (Register R.IP, Register R.SL, Register R.R4,
-                               Register R.R5))
+      testThumb (Some Condition.AL) Op.SMLADX None None None
+                (FourOperands (OprReg R.IP, OprReg R.SL, OprReg R.R4,
+                               OprReg R.R5))
                 [| 0xfbuy; 0x2auy; 0x5cuy; 0x14uy |]
 
-      testThumb (Some Condition.AL) Op.SMLATB None None
-                (FourOperands (Register R.IP, Register R.LR, Register R.R1,
-                               Register R.R5))
+      testThumb (Some Condition.AL) Op.SMLATB None None None
+                (FourOperands (OprReg R.IP, OprReg R.LR, OprReg R.R1,
+                               OprReg R.R5))
                 [| 0xfbuy; 0x1euy; 0x5cuy; 0x21uy |]
 
-      testThumb (Some Condition.AL) Op.SMLALTB None None
-                (FourOperands (Register R.R8, Register R.SL, Register R.R1,
-                               Register R.R3))
+      testThumb (Some Condition.AL) Op.SMLALTB None None None
+                (FourOperands (OprReg R.R8, OprReg R.SL, OprReg R.R1,
+                               OprReg R.R3))
                 [| 0xfbuy; 0xc1uy; 0x8auy; 0xa3uy |]
 
-      testThumb (Some Condition.AL) Op.SMLSLDX None None
-                (FourOperands (Register R.IP, Register R.LR, Register R.R0,
-                               Register R.R5))
+      testThumb (Some Condition.AL) Op.SMLSLDX None None None
+                (FourOperands (OprReg R.IP, OprReg R.LR, OprReg R.R0,
+                               OprReg R.R5))
                 [| 0xfbuy; 0xd0uy; 0xceuy; 0xd5uy |]
 
-      testThumb (Some Condition.AL) Op.SMMULR None None
-                (ThreeOperands (Register R.R0, Register R.R8, Register R.SB))
+      testThumb (Some Condition.AL) Op.SMMULR None None None
+                (ThreeOperands (OprReg R.R0, OprReg R.R8, OprReg R.SB))
                 [| 0xfbuy; 0x58uy; 0xf0uy; 0x19uy |]
 
-      testThumb (Some Condition.AL) Op.SMULTT None None
-                (ThreeOperands (Register R.R8, Register R.FP, Register R.R7))
+      testThumb (Some Condition.AL) Op.SMULTT None None None
+                (ThreeOperands (OprReg R.R8, OprReg R.FP, OprReg R.R7))
                 [| 0xfbuy; 0x1buy; 0xf8uy; 0x37uy |]
 
-      testThumb (Some Condition.AL) Op.SMULL None None
-                (FourOperands (Register R.SL, Register R.SB, Register R.R3,
-                               Register R.R4))
+      testThumb (Some Condition.AL) Op.SMULL None None None
+                (FourOperands (OprReg R.SL, OprReg R.SB, OprReg R.R3,
+                               OprReg R.R4))
                 [| 0xfbuy; 0x83uy; 0xa9uy; 0x04uy |]
 
     /// A4.4.4 Saturating instructions
     [<TestMethod>]
     member __.``[Thumb] Saturating Parse Test`` () =
-      testThumb (Some Condition.AL) Op.SSAT16 None None
-                (ThreeOperands (Register R.IP, Immediate 6L, Register R.R8))
+      testThumb (Some Condition.AL) Op.SSAT16 None None None
+                (ThreeOperands (OprReg R.IP, OprImm 6L, OprReg R.R8))
                 [| 0xf3uy; 0x28uy; 0x0cuy; 0x05uy |]
 
-      testThumb (Some Condition.AL) Op.USAT None None
-                (FourOperands (Register R.R7, Immediate 18L, Register R.R3,
-                               Shift (SRTypeASR, Imm 6u)))
+      testThumb (Some Condition.AL) Op.USAT None None None
+                (FourOperands (OprReg R.R7, OprImm 18L, OprReg R.R3,
+                               OprShift (SRTypeASR, Imm 6u)))
                 [| 0xf3uy; 0xa3uy; 0x17uy; 0x91uy |]
 
     /// A4.4.5 Saturating addition and subtraction instructions
     [<TestMethod>]
     member __.``[Thumb] Saturating addition and subtraction Parse Test`` () =
-      testThumb (Some Condition.AL) Op.QDADD None None
-                (ThreeOperands (Register R.IP, Register R.LR, Register R.R6))
+      testThumb (Some Condition.AL) Op.QDADD None None None
+                (ThreeOperands (OprReg R.IP, OprReg R.LR, OprReg R.R6))
                 [| 0xfauy; 0x86uy; 0xfcuy; 0x9euy |]
 
     /// A4.4.6 Packing and unpacking instructions
     [<TestMethod>]
     member __.``[Thumb] Packing and unpacking Parse Test`` () =
-      testThumb (Some Condition.AL) Op.PKHBT None None
-                (FourOperands (Register R.R0, Register R.IP, Register R.SL,
-                               Shift (SRTypeLSL, Imm 17u)))
+      testThumb (Some Condition.AL) Op.PKHBT None None None
+                (FourOperands (OprReg R.R0, OprReg R.IP, OprReg R.SL,
+                               OprShift (SRTypeLSL, Imm 17u)))
                 [| 0xeauy; 0xccuy; 0x40uy; 0x4auy |]
 
-      testThumb (Some Condition.AL) Op.SXTAH None None
-                (FourOperands (Register R.R4, Register R.R0, Register R.R6,
-                               Shift (SRTypeROR, Imm 24u)))
+      testThumb (Some Condition.AL) Op.SXTAH None None None
+                (FourOperands (OprReg R.R4, OprReg R.R0, OprReg R.R6,
+                               OprShift (SRTypeROR, Imm 24u)))
                 [| 0xfauy; 0x00uy; 0xf4uy; 0xb6uy |]
 
-      testThumb (Some Condition.AL) Op.SXTB16 None None
-                (ThreeOperands (Register R.SB, Register R.R6, Shift (SRTypeROR,
-                                                                 Imm 8u)))
+      testThumb (Some Condition.AL) Op.SXTB16 None None None
+                (ThreeOperands (OprReg R.SB, OprReg R.R6,
+                                OprShift (SRTypeROR, Imm 8u)))
                 [| 0xfauy; 0x2fuy; 0xf9uy; 0x96uy |]
 
-      testThumb (Some Condition.AL) Op.UXTH None None
-                (TwoOperands (Register R.R7, Register R.R0))
+      testThumb (Some Condition.AL) Op.UXTH None None None
+                (TwoOperands (OprReg R.R7, OprReg R.R0))
                 [| 0xb2uy; 0x87uy |]
 
-      testThumb (Some Condition.AL) Op.UXTH (Some W) None
-                (ThreeOperands (Register R.R2, Register R.IP, Shift (SRTypeROR,
-                                                                 Imm 0u)))
+      testThumb (Some Condition.AL) Op.UXTH None (Some W) None
+                (ThreeOperands (OprReg R.R2, OprReg R.IP,
+                                OprShift (SRTypeROR, Imm 0u)))
                 [| 0xfauy; 0x1fuy; 0xf2uy; 0x8cuy |]
 
     /// A4.4.7 Parallel addition and subtraction instructions
     [<TestMethod>]
     member __.``[Thumb] Parallel addition and subtraction Parse Test`` () =
       // Signed
-      testThumb (Some Condition.AL) Op.SADD16 None None
-                (ThreeOperands (Register R.FP, Register R.IP, Register R.R0))
+      testThumb (Some Condition.AL) Op.SADD16 None None None
+                (ThreeOperands (OprReg R.FP, OprReg R.IP, OprReg R.R0))
                 [| 0xfauy; 0x9cuy; 0xfbuy; 0x00uy |]
 
       // Saturating
-      testThumb (Some Condition.AL) Op.QSAX None None
-                (ThreeOperands (Register R.LR, Register R.R8, Register R.SB))
+      testThumb (Some Condition.AL) Op.QSAX None None None
+                (ThreeOperands (OprReg R.LR, OprReg R.R8, OprReg R.SB))
                 [| 0xfauy; 0xe8uy; 0xfeuy; 0x19uy |]
 
       // Signed halving
-      testThumb (Some Condition.AL) Op.SHSUB8 None None
-                (ThreeOperands (Register R.IP, Register R.R0, Register R.R7))
+      testThumb (Some Condition.AL) Op.SHSUB8 None None None
+                (ThreeOperands (OprReg R.IP, OprReg R.R0, OprReg R.R7))
                 [| 0xfauy; 0xc0uy; 0xfcuy; 0x27uy |]
 
       // Unsigned
-      testThumb (Some Condition.AL) Op.UASX None None
-                (ThreeOperands (Register R.R1, Register R.R0, Register R.R6))
+      testThumb (Some Condition.AL) Op.UASX None None None
+                (ThreeOperands (OprReg R.R1, OprReg R.R0, OprReg R.R6))
                 [| 0xfauy; 0xa0uy; 0xf1uy; 0x46uy |]
 
       // Unsigned saturating
-      testThumb (Some Condition.AL) Op.UQADD8 None None
-                (ThreeOperands (Register R.SB, Register R.LR, Register R.R3))
+      testThumb (Some Condition.AL) Op.UQADD8 None None None
+                (ThreeOperands (OprReg R.SB, OprReg R.LR, OprReg R.R3))
                 [| 0xfauy; 0x8euy; 0xf9uy; 0x53uy |]
 
       // Unsigned halving
-      testThumb (Some Condition.AL) Op.UHASX None None
-                (ThreeOperands (Register R.R8, Register R.R0, Register R.SL))
+      testThumb (Some Condition.AL) Op.UHASX None None None
+                (ThreeOperands (OprReg R.R8, OprReg R.R0, OprReg R.SL))
                 [| 0xfauy; 0xa0uy; 0xf8uy; 0x6auy |]
 
     //// A4.4.8 Divide instructions
     [<TestMethod>]
     member __.``[Thumb] Divide Parse Test`` () =
-      testThumb (Some Condition.AL) Op.UDIV None None
-                (ThreeOperands (Register R.IP, Register R.R0, Register R.LR))
+      testThumb (Some Condition.AL) Op.UDIV None None None
+                (ThreeOperands (OprReg R.IP, OprReg R.R0, OprReg R.LR))
                 [| 0xfbuy; 0xb0uy; 0xfcuy; 0xfeuy |]
 
     /// A4.4.9 Miscellaneous data-processing instructions
     [<TestMethod>]
     member __.``[Thumb] Miscellaneous data-processing Parse Test`` () =
-      testThumb (Some Condition.AL) Op.BFC None None
-                (ThreeOperands (Register R.IP, Immediate 4L, Immediate 15L))
+      testThumb (Some Condition.AL) Op.BFC None None None
+                (ThreeOperands (OprReg R.IP, OprImm 4L, OprImm 15L))
                 [| 0xf3uy; 0x6fuy; 0x1cuy; 0x12uy |]
 
-      testThumb (Some Condition.AL) Op.BFI None None
-                (FourOperands (Register R.SL, Register R.R1, Immediate 11L,
-                               Immediate 7L))
+      testThumb (Some Condition.AL) Op.BFI None None None
+                (FourOperands (OprReg R.SL, OprReg R.R1, OprImm 11L,
+                               OprImm 7L))
                 [| 0xf3uy; 0x61uy; 0x2auy; 0xd1uy |]
 
-      testThumb (Some Condition.AL) Op.RBIT None None
-                (TwoOperands (Register R.IP, Register R.R4))
+      testThumb (Some Condition.AL) Op.RBIT None None None
+                (TwoOperands (OprReg R.IP, OprReg R.R4))
                 [| 0xfauy; 0x94uy; 0xfcuy; 0xa4uy |]
 
-      testThumb (Some Condition.AL) Op.SBFX None None
-                (FourOperands (Register R.SB, Register R.LR, Immediate 0L,
-                               Immediate 25L))
+      testThumb (Some Condition.AL) Op.SBFX None None None
+                (FourOperands (OprReg R.SB, OprReg R.LR, OprImm 0L,
+                               OprImm 25L))
                 [| 0xf3uy; 0x4euy; 0x09uy; 0x18uy |]
 
   /// A4.5 Status register access instructions
   [<TestClass>]
-  type StatusRegisterAccessClass () =
+  type StatusOprRegAccessClass () =
     [<TestMethod>]
     member __.``[Thumb] Status register access Parse Test`` () =
-      testThumb (Some Condition.AL) Op.MRS None None
-                (TwoOperands (Register R.R5, Register R.APSR))
+      testThumb (Some Condition.AL) Op.MRS None None None
+                (TwoOperands (OprReg R.R5, OprReg R.APSR))
                 [| 0xf3uy; 0xefuy; 0x85uy; 0x00uy |]
 
-      testThumb (Some Condition.AL) Op.MRS None None
-                (TwoOperands (Register R.IP, Register R.SPSR))
+      testThumb (Some Condition.AL) Op.MRS None None None
+                (TwoOperands (OprReg R.IP, OprReg R.SPSR))
                 [| 0xf3uy; 0xffuy; 0x8cuy; 0x00uy |]
 
-      testThumb (Some Condition.AL) Op.MSR None None
-                (TwoOperands (SpecReg (R.APSR, Some PSRg),Register R.FP))
+      testThumb (Some Condition.AL) Op.MSR None None None
+                (TwoOperands (OprSpecReg (R.APSR, Some PSRg),OprReg R.FP))
                 [| 0xf3uy; 0x8buy; 0x84uy; 0x00uy |]
 
-      testThumb (Some Condition.AL) Op.MSR None None
-                (TwoOperands (SpecReg (R.CPSR, Some PSRsc), Register R.IP))
+      testThumb (Some Condition.AL) Op.MSR None None None
+                (TwoOperands (OprSpecReg (R.CPSR, Some PSRsc), OprReg R.IP))
                 [| 0xf3uy; 0x8cuy; 0x85uy; 0x00uy |]
 
-      testThumb None Op.CPSID (Some W) None
-                (TwoOperands (Iflag IF, Immediate 4L))
+      testThumb None Op.CPSID None (Some W) None
+                (TwoOperands (OprIflag IF, OprImm 4L))
                 [| 0xf3uy; 0xafuy; 0x87uy; 0x64uy |]
 
-      testThumb None Op.CPSIE None None
-                (OneOperand (Iflag AF))
+      testThumb None Op.CPSIE None None None
+                (OneOperand (OprIflag AF))
                 [| 0xb6uy; 0x65uy |]
 
     /// A4.5.1 Banked register access instructions
     [<TestMethod>]
     member __.``[Thumb] Banked register access Parse Test`` () =
-      testThumb (Some Condition.AL) Op.MRS None None
-                (TwoOperands (Register R.LRusr, Register R.R0))
+      testThumb (Some Condition.AL) Op.MRS None None None
+                (TwoOperands (OprReg R.LRusr, OprReg R.R0))
                 [| 0xf3uy; 0xe6uy; 0x80uy; 0x20uy |]
 
-      testThumb (Some Condition.AL) Op.MSR None None
-                (TwoOperands (Register R.SPSRabt, Register R.R1))
+      testThumb (Some Condition.AL) Op.MSR None None None
+                (TwoOperands (OprReg R.SPSRabt, OprReg R.R1))
                 [| 0xf3uy; 0x91uy; 0x84uy; 0x30uy |]
 
   /// A4.6 Load/store instructions
@@ -4346,217 +5692,216 @@ module ARMThumb =
   type LoadStoreClass () =
     [<TestMethod>]
     member __.``[Thumb] Load/store (Lord) Parse Test`` () =
-      testThumb (Some Condition.AL) Op.LDR None None
-                (TwoOperands (Register R.R1,
-                              Memory (OffsetMode
-                                       (ImmOffset (R.SP,  Some Plus, Some 60L)))))
+      testThumb (Some Condition.AL) Op.LDR (Some false) None None
+                (TwoOperands (OprReg R.R1, OprMemory
+                  (OffsetMode (ImmOffset (R.SP,  Some Plus, Some 60L)))))
                 [| 0x99uy; 0x0fuy |]
 
-      testThumb (Some Condition.AL) Op.LDR None None
-                (TwoOperands (Register R.R4, Memory (LiteralMode 220L)))
+      testThumb (Some Condition.AL) Op.LDR None None None
+                (TwoOperands (OprReg R.R4, OprMemory (LiteralMode 220L)))
                 [| 0x4cuy; 0x37uy |]
 
-      testThumb (Some Condition.AL) Op.LDR (Some W) None
-                (TwoOperands (Register R.R0,
-                              Memory (LiteralMode 135L)))
+      testThumb (Some Condition.AL) Op.LDR (Some false) (Some W) None
+                (TwoOperands (OprReg R.R0,
+                              OprMemory (LiteralMode 135L)))
                 [| 0xf8uy; 0xdfuy; 0x00uy; 0x87uy |]
 
-      testThumb (Some Condition.AL) Op.LDR (Some W) None
-                (TwoOperands (Register R.IP,
-                              Memory (OffsetMode
+      testThumb (Some Condition.AL) Op.LDR None (Some W) None
+                (TwoOperands (OprReg R.IP,
+                              OprMemory (OffsetMode
                                         (RegOffset (R.SB, Some Plus, R.R8,
                                                     Some (SRTypeLSL,
                                                           Imm 3u))))))
                 [| 0xf8uy; 0x59uy; 0xc0uy; 0x38uy |]
 
-      testThumb (Some Condition.AL) Op.LDR None None
-                (TwoOperands (Register R.R2,
-                              Memory (PreIdxMode
+      testThumb (Some Condition.AL) Op.LDR (Some true) None None
+                (TwoOperands (OprReg R.R2,
+                              OprMemory (PreIdxMode
                                         (ImmOffset (R.R1, Some Plus, Some 51L)))))
                 [| 0xf8uy; 0x51uy; 0x2fuy; 0x33uy |]
 
-      testThumb (Some Condition.AL) Op.LDR (Some W) None
-                (TwoOperands (Register R.IP,
-                              Memory (OffsetMode
+      testThumb (Some Condition.AL) Op.LDR (Some false) (Some W) None
+                (TwoOperands (OprReg R.IP,
+                              OprMemory (OffsetMode
                                        (ImmOffset (R.LR, Some Plus, Some 128L)))))
                 [| 0xf8uy; 0xdeuy; 0xc0uy; 0x80uy |]
 
-      testThumb (Some Condition.AL) Op.LDRH None None
-                (TwoOperands (Register R.FP,
-                              Memory (OffsetMode
+      testThumb (Some Condition.AL) Op.LDRH (Some false) None None
+                (TwoOperands (OprReg R.FP,
+                              OprMemory (OffsetMode
                                        (ImmOffset (R.SB, Some Minus,
                                                    Some 130L)))))
                 [| 0xf8uy; 0x39uy; 0xbcuy; 0x82uy |]
 
-      testThumb (Some Condition.AL) Op.LDRSH None None
-                (TwoOperands (Register R.R6,
-                              Memory (LiteralMode -587L)))
+      testThumb (Some Condition.AL) Op.LDRSH None None None
+                (TwoOperands (OprReg R.R6,
+                              OprMemory (LiteralMode -587L)))
                 [| 0xf9uy; 0x3fuy; 0x62uy; 0x4buy |]
 
-      testThumb (Some Condition.AL) Op.LDRSH None None
-                (TwoOperands (Register R.FP,
-                              Memory (OffsetMode
+      testThumb (Some Condition.AL) Op.LDRSH (Some false) None None
+                (TwoOperands (OprReg R.FP,
+                              OprMemory (OffsetMode
                                        (ImmOffset (R.R3, Some Plus, Some 11L)))))
                 [| 0xf9uy; 0xb3uy; 0xb0uy; 0x0buy |]
 
-      testThumb (Some Condition.AL) Op.LDRB None None
-                (TwoOperands (Register R.R6,
-                              Memory (OffsetMode
+      testThumb (Some Condition.AL) Op.LDRB (Some false) None None
+                (TwoOperands (OprReg R.R6,
+                              OprMemory (OffsetMode
                                        (ImmOffset (R.R4, Some Plus, Some 6L)))))
                 [| 0x79uy; 0xa6uy |]
 
-      testThumb (Some Condition.AL) Op.LDRB (Some W) None
-                (TwoOperands (Register R.SL,
-                              Memory (OffsetMode
+      testThumb (Some Condition.AL) Op.LDRB (Some false) (Some W) None
+                (TwoOperands (OprReg R.SL,
+                              OprMemory (OffsetMode
                                        (RegOffset (R.R2, Some Plus, R.R6,
                                                    Some (SRTypeLSL, Imm 3u))))))
                 [| 0xf8uy; 0x12uy; 0xa0uy; 0x36uy |]
 
-      testThumb (Some Condition.AL) Op.LDRB None None
-                (TwoOperands (Register R.R8,
-                              Memory (PostIdxMode
+      testThumb (Some Condition.AL) Op.LDRB (Some true) None None
+                (TwoOperands (OprReg R.R8,
+                              OprMemory (PostIdxMode
                                        (ImmOffset (R.R4, Some Minus,
                                                    Some 12L)))))
                 [| 0xf8uy; 0x14uy; 0x89uy; 0x0cuy |]
 
-      testThumb (Some Condition.AL) Op.LDRB (Some W) None
-                (TwoOperands (Register R.R3, Memory (LiteralMode 240L)))
+      testThumb (Some Condition.AL) Op.LDRB None (Some W) None
+                (TwoOperands (OprReg R.R3, OprMemory (LiteralMode 240L)))
                 [| 0xf8uy; 0x9fuy; 0x30uy; 0xf0uy |]
 
-      testThumb (Some Condition.AL) Op.LDRSB None None
-                (TwoOperands (Register R.R1,
-                              Memory (OffsetMode
+      testThumb (Some Condition.AL) Op.LDRSB (Some false) None None
+                (TwoOperands (OprReg R.R1,
+                              OprMemory (OffsetMode
                                        (ImmOffset (R.R8, Some Plus,
                                                    Some 3122L)))))
                 [| 0xf9uy; 0x98uy; 0x1cuy; 0x32uy |]
 
-      testThumb (Some Condition.AL) Op.LDRSB (Some W) None
-                (TwoOperands (Register R.SB,
-                              Memory (OffsetMode
+      testThumb (Some Condition.AL) Op.LDRSB (Some false) (Some W) None
+                (TwoOperands (OprReg R.SB,
+                              OprMemory (OffsetMode
                                         (RegOffset (R.LR, Some Plus, R.R0,
                                                     Some (SRTypeLSL,
                                                           Imm 2u))))))
                 [| 0xf9uy; 0x1euy; 0x90uy; 0x20uy |]
 
-      testThumb (Some Condition.AL) Op.LDRD None None
-                (ThreeOperands (Register R.IP, Register R.R6,
-                                Memory (LiteralMode -264L)))
+      testThumb (Some Condition.AL) Op.LDRD (Some false) None None
+                (ThreeOperands (OprReg R.IP, OprReg R.R6,
+                                OprMemory (LiteralMode -264L)))
                 [| 0xe9uy; 0x5fuy; 0xc6uy; 0x42uy |]
 
     [<TestMethod>]
     member __.``[Thumb] Load/store (Store) Parse Test`` () =
-      testThumb (Some Condition.AL) Op.STR None None
-                (TwoOperands (Register R.R7,
-                              Memory (OffsetMode
+      testThumb (Some Condition.AL) Op.STR (Some false) None None
+                (TwoOperands (OprReg R.R7,
+                              OprMemory (OffsetMode
                                        (ImmOffset (R.R6,  Some Plus, Some 96L)))))
                 [| 0x66uy; 0x37uy |]
 
-      testThumb (Some Condition.AL) Op.STRH None None
-                (TwoOperands (Register R.R7,
-                              Memory (OffsetMode
+      testThumb (Some Condition.AL) Op.STRH (Some false) None None
+                (TwoOperands (OprReg R.R7,
+                              OprMemory (OffsetMode
                                        (ImmOffset (R.R2, Some Plus, Some 34L)))))
                 [| 0x84uy; 0x57uy |]
 
-      testThumb (Some Condition.AL) Op.STRB None None
-                (TwoOperands (Register R.R4,
-                              Memory (OffsetMode (RegOffset (R.R3, None, R.R2,
+      testThumb (Some Condition.AL) Op.STRB (Some false) None None
+                (TwoOperands (OprReg R.R4,
+                              OprMemory (OffsetMode (RegOffset (R.R3, None, R.R2,
                                                              None)))))
                 [| 0x54uy; 0x9cuy |]
 
-      testThumb (Some Condition.AL) Op.STRB None None
-                (TwoOperands (Register R.LR,
-                              Memory (PostIdxMode
+      testThumb (Some Condition.AL) Op.STRB (Some true) None None
+                (TwoOperands (OprReg R.LR,
+                              OprMemory (PostIdxMode
                                        (ImmOffset
                                          (R.SB, Some Minus, Some 130L)))))
                 [| 0xf8uy; 0x09uy; 0xe9uy; 0x82uy |]
 
-      testThumb (Some Condition.AL) Op.STRB (Some W) None
-                (TwoOperands (Register R.IP,
-                              Memory (OffsetMode
+      testThumb (Some Condition.AL) Op.STRB (Some false) (Some W) None
+                (TwoOperands (OprReg R.IP,
+                              OprMemory (OffsetMode
                                        (ImmOffset (R.R6, Some Plus,
                                                    Some 2060L)))))
                 [| 0xf8uy; 0x86uy; 0xc8uy; 0x0cuy |]
 
-      testThumb (Some Condition.AL) Op.STRB (Some W) None
-                (TwoOperands (Register R.R0,
-                              Memory (OffsetMode
+      testThumb (Some Condition.AL) Op.STRB (Some false) (Some W) None
+                (TwoOperands (OprReg R.R0,
+                              OprMemory (OffsetMode
                                         (RegOffset (R.SL, Some Plus, R.IP,
                                                     Some (SRTypeLSL,
                                                           Imm 2u))))))
                 [| 0xf8uy; 0x0auy; 0x00uy; 0x2cuy |]
 
-      testThumb (Some Condition.AL) Op.STRD None None
-                (ThreeOperands (Register R.R3, Register R.SB,
-                                Memory (PreIdxMode
+      testThumb (Some Condition.AL) Op.STRD (Some true) None None
+                (ThreeOperands (OprReg R.R3, OprReg R.SB,
+                                OprMemory (PreIdxMode
                                          (ImmOffset (R.SL, Some Minus,
                                                      Some 240L)))))
                 [| 0xe9uy; 0x6auy; 0x39uy; 0x3cuy |]
 
     [<TestMethod>]
     member __.``[Thumb] Load/store (Load unprivileged) Parse Test`` () =
-      testThumb (Some Condition.AL) Op.LDRT None None
-                (TwoOperands (Register R.R1,
-                              Memory (OffsetMode
+      testThumb (Some Condition.AL) Op.LDRT None None None
+                (TwoOperands (OprReg R.R1,
+                              OprMemory (OffsetMode
                                         (ImmOffset (R.R0, None, Some 4L)))))
                 [| 0xf8uy; 0x50uy; 0x1euy; 0x04uy |]
 
-      testThumb (Some Condition.AL) Op.LDRHT None None
-                (TwoOperands (Register R.IP,
-                              Memory (OffsetMode
+      testThumb (Some Condition.AL) Op.LDRHT None None None
+                (TwoOperands (OprReg R.IP,
+                              OprMemory (OffsetMode
                                         (ImmOffset (R.R4, None, Some 1L)))))
                 [| 0xf8uy; 0x34uy; 0xceuy; 0x01uy |]
 
-      testThumb (Some Condition.AL) Op.LDRSBT None None
-                (TwoOperands (Register R.SB,
-                              Memory (OffsetMode
+      testThumb (Some Condition.AL) Op.LDRSBT None None None
+                (TwoOperands (OprReg R.SB,
+                              OprMemory (OffsetMode
                                         (ImmOffset (R.IP, None, Some 9L)))))
                 [| 0xf9uy; 0x1cuy; 0x9euy; 0x09uy |]
 
     [<TestMethod>]
     member __.``[Thumb] Load/store (Store unprivileged) Parse Test`` () =
-      testThumb (Some Condition.AL) Op.STRHT None None
-                (TwoOperands (Register R.FP,
-                              Memory (OffsetMode (ImmOffset (R.R7, None,
+      testThumb (Some Condition.AL) Op.STRHT None None None
+                (TwoOperands (OprReg R.FP,
+                              OprMemory (OffsetMode (ImmOffset (R.R7, None,
                                                              Some 83L)))))
                 [| 0xf8uy; 0x27uy; 0xbeuy; 0x53uy |]
 
     [<TestMethod>]
     member __.``[Thumb] Load/store (Load-Exclusive) Parse Test`` () =
-      testThumb (Some Condition.AL) Op.LDREX None None
-                (TwoOperands (Register R.FP,
-                              Memory (OffsetMode
+      testThumb (Some Condition.AL) Op.LDREX None None None
+                (TwoOperands (OprReg R.FP,
+                              OprMemory (OffsetMode
                                         (ImmOffset (R.SB, None, Some 56L)))))
                 [| 0xe8uy; 0x59uy; 0xbfuy; 0x0euy |]
 
-      testThumb (Some Condition.AL) Op.LDREXB None None
-                (TwoOperands (Register R.R0,
-                              Memory (OffsetMode
+      testThumb (Some Condition.AL) Op.LDREXB None None None
+                (TwoOperands (OprReg R.R0,
+                              OprMemory (OffsetMode
                                         (ImmOffset (R.SB, None, None)))))
                 [| 0xe8uy; 0xd9uy; 0x0fuy; 0x4fuy |]
 
-      testThumb (Some Condition.AL) Op.LDREXD None None
-                (ThreeOperands (Register R.SL, Register R.IP,
-                                Memory (OffsetMode
+      testThumb (Some Condition.AL) Op.LDREXD None None None
+                (ThreeOperands (OprReg R.SL, OprReg R.IP,
+                                OprMemory (OffsetMode
                                           (ImmOffset (R.LR, None, None)))))
                 [| 0xe8uy; 0xdeuy; 0xacuy; 0x7fuy |]
 
     [<TestMethod>]
     member __.``[Thumb] Load/store (Store-Exclusive) Parse Test`` () =
-      testThumb (Some Condition.AL) Op.STREX None None
-                (ThreeOperands (Register R.SL, Register R.LR,
-                                Memory (OffsetMode
+      testThumb (Some Condition.AL) Op.STREX None None None
+                (ThreeOperands (OprReg R.SL, OprReg R.LR,
+                                OprMemory (OffsetMode
                                           (ImmOffset (R.R1, None, Some 48L)))))
                 [| 0xe8uy; 0x41uy; 0xeauy; 0x0cuy |]
 
-      testThumb (Some Condition.AL) Op.STREXH None None
-                (ThreeOperands (Register R.R6, Register R.SL,
-                                Memory (OffsetMode
+      testThumb (Some Condition.AL) Op.STREXH None None None
+                (ThreeOperands (OprReg R.R6, OprReg R.SL,
+                                OprMemory (OffsetMode
                                           (ImmOffset (R.R8, None, None)))))
                 [| 0xe8uy; 0xc8uy; 0xafuy; 0x56uy |]
 
-      testThumb (Some Condition.AL) Op.STREXD None None
-                (FourOperands (Register R.R4, Register R.IP, Register R.FP,
-                               Memory (OffsetMode
+      testThumb (Some Condition.AL) Op.STREXD None None None
+                (FourOperands (OprReg R.R4, OprReg R.IP, OprReg R.FP,
+                               OprMemory (OffsetMode
                                          (ImmOffset (R.R0, None, None)))))
                 [| 0xe8uy; 0xc0uy; 0xcbuy; 0x74uy |]
 
@@ -4565,44 +5910,44 @@ module ARMThumb =
   type LoadStoreMultipleClass () =
     [<TestMethod>]
     member __.``[Thumb] Load/store multiple Parse Test`` () =
-      testThumb (Some Condition.AL) Op.LDM None None
-                (TwoOperands (Register R.RegisterWR3,
-                              RegList [R.R0; R.R6; R.R7]))
+      testThumb (Some Condition.AL) Op.LDM (Some true) None None
+                (TwoOperands (OprReg R.R3,
+                              OprRegList [R.R0; R.R6; R.R7]))
                 [| 0xcbuy; 0xc1uy |]
 
-      testThumb (Some Condition.AL) Op.LDM (Some W) None
-                (TwoOperands (Register R.RegisterWR8F,
-                              RegList [R.R2; R.R7; R.R8; R.IP; R.LR]))
+      testThumb (Some Condition.AL) Op.LDM (Some false) (Some W) None
+                (TwoOperands (OprReg R.R8,
+                              OprRegList [R.R2; R.R7; R.R8; R.IP; R.LR]))
                 [| 0xe8uy; 0x98uy; 0x51uy; 0x84uy |]
 
-      testThumb (Some Condition.AL) Op.POP (Some W) None
-                (OneOperand (RegList [R.R0; R.R4; R.SB; R.SL; R.PC]))
+      testThumb (Some Condition.AL) Op.POP None (Some W) None
+                (OneOperand (OprRegList [R.R0; R.R4; R.SB; R.SL; R.PC]))
                 [| 0xe8uy; 0xbduy; 0x86uy; 0x11uy |]
 
-      testThumb (Some Condition.AL) Op.POP (Some W) None
-                (OneOperand (Register R.R3))
+      testThumb (Some Condition.AL) Op.POP None (Some W) None
+                (OneOperand (OprReg R.R3))
                 [| 0xf8uy; 0x5duy; 0x3buy; 0x04uy |]
 
-      testThumb (Some Condition.AL) Op.PUSH None None
-                (OneOperand (RegList [R.R0; R.R1; R.R4; R.R5; R.LR]))
+      testThumb (Some Condition.AL) Op.PUSH None None None
+                (OneOperand (OprRegList [R.R0; R.R1; R.R4; R.R5; R.LR]))
                 [| 0xb5uy; 0x33uy |]
 
-      testThumb (Some Condition.AL) Op.PUSH (Some W) None
-                (OneOperand (RegList [R.R2; R.R7; R.R8]))
+      testThumb (Some Condition.AL) Op.PUSH None (Some W) None
+                (OneOperand (OprRegList [R.R2; R.R7; R.R8]))
                 [| 0xe9uy; 0x2duy; 0x01uy; 0x84uy |]
 
-      testThumb (Some Condition.AL) Op.PUSH (Some W) None
-                (OneOperand (Register R.R1))
+      testThumb (Some Condition.AL) Op.PUSH None (Some W) None
+                (OneOperand (OprReg R.R1))
                 [| 0xf8uy; 0x4duy; 0x1duy; 0x04uy |]
 
-      testThumb (Some Condition.AL) Op.STM None None
-                (TwoOperands (Register R.RegisterWR5,
-                              RegList [R.R0; R.R1; R.R5; R.R7]))
+      testThumb (Some Condition.AL) Op.STM (Some true) None None
+                (TwoOperands (OprReg R.R5,
+                              OprRegList [R.R0; R.R1; R.R5; R.R7]))
                 [| 0xc5uy; 0xa3uy |]
 
-      testThumb (Some Condition.AL) Op.STM (Some W) None
-                (TwoOperands (Register R.RegisterWR2F,
-                              RegList [R.R4; R.R7; R.R8; R.FP; R.IP; R.LR]))
+      testThumb (Some Condition.AL) Op.STM (Some false) (Some W) None
+                (TwoOperands (OprReg R.R2,
+                              OprRegList [R.R4; R.R7; R.R8; R.FP; R.IP; R.LR]))
                 [| 0xe8uy; 0x82uy; 0x59uy; 0x90uy |]
 
   /// A4.8 Miscellaneous instructions
@@ -4610,64 +5955,64 @@ module ARMThumb =
   type MiscellaneousClass () =
     [<TestMethod>]
     member __.``[Thumb] Miscellaneous Parse Test`` () =
-      testThumb (Some Condition.AL) Op.DBG None None
-                (OneOperand (Immediate 11L))
+      testThumb (Some Condition.AL) Op.DBG None None None
+                (OneOperand (OprImm 11L))
                 [| 0xf3uy; 0xafuy; 0x80uy; 0xfbuy |]
 
-      testThumb (Some Condition.AL) Op.DMB None None
-                (OneOperand (Option NSH))
+      testThumb (Some Condition.AL) Op.DMB None None None
+                (OneOperand (OprOption NSH))
                 [| 0xf3uy; 0xbfuy; 0x8fuy; 0x57uy |]
 
-      testThumb None Op.ITE None None
-                (OneOperand (Cond Condition.VS))
+      testThumb None Op.ITE None None None
+                (OneOperand (OprCond Condition.VS))
                 [| 0xbfuy; 0x6cuy |]
 
-      testThumb (Some Condition.AL) Op.NOP (Some W) None
+      testThumb (Some Condition.AL) Op.NOP None (Some W) None
                 NoOperand
                 [| 0xf3uy; 0xafuy; 0x80uy; 0x00uy |]
 
-      testThumb (Some Condition.AL) Op.PLD None None
-                (OneOperand (Memory (OffsetMode
+      testThumb (Some Condition.AL) Op.PLD None None None
+                (OneOperand (OprMemory (OffsetMode
                                        (RegOffset (R.IP, None, R.FP,
                                                    Some (SRTypeLSL, Imm 1u))))))
                 [| 0xf8uy; 0x1cuy; 0xf0uy; 0x1buy |]
 
-      testThumb (Some Condition.AL) Op.PLD None None
-                (OneOperand (Memory (OffsetMode
+      testThumb (Some Condition.AL) Op.PLD None None None
+                (OneOperand (OprMemory (OffsetMode
                                       (ImmOffset (R.R0, Some Minus, Some 32L)))))
                 [| 0xf8uy; 0x10uy; 0xfcuy; 0x20uy |]
 
-      testThumb (Some Condition.AL) Op.PLD None None
-                (OneOperand (Memory (LiteralMode -142L)))
+      testThumb (Some Condition.AL) Op.PLD None None None
+                (OneOperand (OprMemory (LiteralMode -142L)))
                 [| 0xf8uy; 0x1fuy; 0xf0uy; 0x8euy |]
 
-      testThumb (Some Condition.AL) Op.PLD None None
-                (OneOperand (Memory (LiteralMode 15L)))
+      testThumb (Some Condition.AL) Op.PLD None None None
+                (OneOperand (OprMemory (LiteralMode 15L)))
                 [| 0xf8uy; 0x9fuy; 0xf0uy; 0x0fuy |]
 
-      testThumb (Some Condition.AL) Op.PLDW None None
-                (OneOperand (Memory (OffsetMode
+      testThumb (Some Condition.AL) Op.PLDW None None None
+                (OneOperand (OprMemory (OffsetMode
                                        (RegOffset (R.R7, None, R.FP,
                                                    Some (SRTypeLSL, Imm 1u))))))
                 [| 0xf8uy; 0x37uy; 0xf0uy; 0x1buy |]
 
-      testThumb (Some Condition.AL) Op.PLDW None None
-                (OneOperand (Memory (OffsetMode
+      testThumb (Some Condition.AL) Op.PLDW None None None
+                (OneOperand (OprMemory (OffsetMode
                                       (ImmOffset (R.R2, Some Minus, Some 49L)))))
                 [| 0xf8uy; 0x32uy; 0xfcuy; 0x31uy |]
 
-      testThumb (Some Condition.AL) Op.PLDW None None
-                (OneOperand (Memory (OffsetMode
+      testThumb (Some Condition.AL) Op.PLDW None None None
+                (OneOperand (OprMemory (OffsetMode
                                       (ImmOffset (R.IP, Some Plus, Some 195L)))))
                 [| 0xf8uy; 0xbcuy; 0xf0uy; 0xc3uy |]
 
-      testThumb (Some Condition.AL) Op.PLI None None
-                (OneOperand (Memory (OffsetMode
+      testThumb (Some Condition.AL) Op.PLI None None None
+                (OneOperand (OprMemory (OffsetMode
                                       (ImmOffset (R.SL, Some Plus, Some 3L)))))
                 [| 0xf9uy; 0x9auy; 0xf0uy; 0x03uy |]
 
-      testThumb None Op.SETEND None None
-                (OneOperand (Endian Endian.Big))
+      testThumb None Op.SETEND None None None
+                (OneOperand (OprEndian Endian.Big))
                 [| 0xb6uy; 0x58uy |]
 
   /// A4.9 Exception-generating and exception-handling instructions
@@ -4675,36 +6020,36 @@ module ARMThumb =
   type ExcepGenAndExcepHandClass () =
     [<TestMethod>]
     member __.``[Thumb] Exception-gen and exception-handling Parse Test`` () =
-      testThumb None Op.BKPT None None
-                (OneOperand (Immediate 48L))
+      testThumb None Op.BKPT None None None
+                (OneOperand (OprImm 48L))
                 [| 0xbeuy; 0x30uy |]
 
-      testThumb (Some Condition.AL) Op.SMC None None
-                (OneOperand (Immediate 8L))
+      testThumb (Some Condition.AL) Op.SMC None None None
+                (OneOperand (OprImm 8L))
                 [| 0xf7uy; 0xf8uy; 0x80uy; 0x00uy |]
 
-      testThumb (Some Condition.AL) Op.RFEIA None None
-                (OneOperand (Register R.RegisterWSL))
+      testThumb (Some Condition.AL) Op.RFEIA (Some true) None None
+                (OneOperand (OprReg R.SL))
                 [| 0xe9uy; 0xbauy; 0xc0uy; 0x00uy |]
 
-      testThumb (Some Condition.AL) Op.SUBS None None
-                (ThreeOperands (Register R.PC, Register R.LR, Immediate 8L))
+      testThumb (Some Condition.AL) Op.SUBS None None None
+                (ThreeOperands (OprReg R.PC, OprReg R.LR, OprImm 8L))
                 [| 0xf3uy; 0xdeuy; 0x8fuy; 0x08uy |]
 
-      testThumb None Op.HVC None None
-                (OneOperand (Immediate 4108L))
+      testThumb None Op.HVC None None None
+                (OneOperand (OprImm 4108L))
                 [| 0xf7uy; 0xe1uy; 0x80uy; 0x0cuy |]
 
-      testThumb (Some Condition.AL) Op.ERET None None
+      testThumb (Some Condition.AL) Op.ERET None None None
                 NoOperand
                 [| 0xf3uy; 0xdeuy; 0x8fuy; 0x00uy |]
 
-      testThumb (Some Condition.AL) Op.ERET None None
+      testThumb (Some Condition.AL) Op.ERET None None None
                 NoOperand
                 [| 0xf3uy; 0xdeuy; 0x8fuy; 0x00uy |]
 
-      testThumb (Some Condition.AL) Op.SRSDB None None
-                (TwoOperands ((Register R.RegisterWSP), Immediate 19L))
+      testThumb (Some Condition.AL) Op.SRSDB (Some true) None None
+                (TwoOperands ((OprReg R.SP), OprImm 19L))
                 [| 0xe8uy; 0x2duy; 0xc0uy; 0x13uy |]
 
   /// A5.4 Media instructions
@@ -4712,8 +6057,8 @@ module ARMThumb =
   type MediaClass () =
     [<TestMethod>]
     member __.``[Thumb] Media Parse Test`` () =
-      testThumb (Some Condition.AL) Op.UDF None None
-                (OneOperand (Immediate 15L))
+      testThumb (Some Condition.AL) Op.UDF None None None
+                (OneOperand (OprImm 15L))
                 [| 0xdeuy; 0x0fuy |]
 
   /// A6.3.4 Branches and miscellaneous control
@@ -4721,7 +6066,7 @@ module ARMThumb =
   type MiscellaneousControlClass () =
     [<TestMethod>]
     member __.``[Thumb] Miscellaneous control Parse Test`` () =
-      testThumb None Op.ENTERX None None
+      testThumb None Op.ENTERX None None None
                 NoOperand
                 [| 0xf3uy; 0xbfuy; 0x8fuy; 0x1fuy |]
 

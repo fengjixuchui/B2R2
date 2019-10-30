@@ -32,10 +32,6 @@ open System.Collections.Generic
 /// Missing vertex.
 exception VertexNotFoundException
 
-/// Raised when a root node is not set in the graph, but the user tries to get
-/// the root node from the graph.
-exception RootNodeNotSetException
-
 /// Multiple vertices found when looking for a vertex containing certain data
 exception MultipleVerticesFoundException
 
@@ -80,6 +76,9 @@ type Vertex<'V when 'V :> VertexData> (?v: 'V) =
     | Some v -> v.ID
     | None -> 0
 
+  /// Check whether vertex is dummy node.
+  member __.IsDummy () = Option.isNone v
+
   /// List of predecessors.
   member val Preds: Vertex<'V> list = [] with get, set
 
@@ -97,6 +96,11 @@ type Vertex<'V when 'V :> VertexData> (?v: 'V) =
 
   override __.GetHashCode () = __.GetID ()
 
+  override __.ToString () =
+    match v with
+    | Some v -> sprintf "Vertex<%s>" <| v.ToString ()
+    | None -> "DummyVertex"
+
   // Each vertex has a unique ID, so ID can be used for comparison.
   interface System.IComparable with
     member __.CompareTo obj =
@@ -111,15 +115,15 @@ type Edge<'E> = Edge of 'E
 /// Disclaimer: Our graph implementation is imperative.
 [<AbstractClass>]
 type DiGraph<'V, 'E when 'V :> VertexData> () =
+  let unreachables = HashSet<Vertex<'V>> ()
+  let exits = HashSet<Vertex<'V>> ()
+
   /// A list of unreachable nodes. We always add nodes into this list first, and
   /// then later remove it from the list when adding edges.
-  member val internal Unreachables: Vertex<'V> list = [] with get, set
+  member val internal Unreachables = unreachables with get
 
   /// A list of exit nodes, which do not have any successors.
-  member val internal Exits: Vertex<'V> list = [] with get, set
-
-  /// The root node of this graph.
-  member val private Root: Vertex<'V> option = None with get, set
+  member val internal Exits = exits with get
 
   /// Is this empty? A graph is empty when there is no vertex in the graph.
   abstract IsEmpty: unit -> bool
@@ -133,9 +137,8 @@ type DiGraph<'V, 'E when 'V :> VertexData> () =
   /// Remove the given vertex from the graph.
   abstract RemoveVertex: Vertex<'V> -> unit
 
-  /// Find the given vertex from the graph. It will raise an exception if such a
-  /// vertex does not exist.
-  abstract FindVertex: Vertex<'V> -> Vertex<'V>
+  /// Check the existence of the given vertex from the graph.
+  abstract Exists: Vertex<'V> -> bool
 
   /// Find a vertex that has the given VertexData, from the graph. It will raise
   /// an exception if such a vertex does not exist. Note that this function can
@@ -150,7 +153,8 @@ type DiGraph<'V, 'E when 'V :> VertexData> () =
   /// Remove the edge that spans from src to dst.
   abstract RemoveEdge: src: Vertex<'V> -> dst: Vertex<'V> -> unit
 
-  abstract FindEdge: src: Vertex<'V> -> dst: Vertex<'V> -> 'E
+  /// find the data of the edge that spans from src to dst.
+  abstract FindEdgeData: src: Vertex<'V> -> dst: Vertex<'V> -> 'E
 
   /// Return a new transposed (i.e., reversed) graph.
   abstract Reverse: unit -> DiGraph<'V, 'E>
@@ -162,10 +166,12 @@ type DiGraph<'V, 'E when 'V :> VertexData> () =
   abstract IterVertex: (Vertex<'V> -> unit) -> unit
 
   /// Fold every edge in the graph (the order can be arbitrary).
-  abstract FoldEdge: ('a -> Vertex<'V> -> Vertex<'V> -> 'a) -> 'a -> 'a
+  abstract FoldEdge: ('a -> Vertex<'V> -> Vertex<'V> -> 'E -> 'a) -> 'a -> 'a
 
   /// Fold every edge in the graph (the order can be arbitrary).
-  abstract IterEdge: (Vertex<'V> -> Vertex<'V> -> unit) -> unit
+  abstract IterEdge: (Vertex<'V> -> Vertex<'V> -> 'E -> unit) -> unit
+
+  abstract GetVertices: unit -> Set<Vertex<'V>>
 
   member __.FindVertexByID id =
     let folder acc (v: Vertex<_>) = if v.GetID () = id then Some v else acc
@@ -173,9 +179,25 @@ type DiGraph<'V, 'E when 'V :> VertexData> () =
     | Some v -> v
     | None -> raise VertexNotFoundException
 
+  member __.TryFindVertexByID id =
+    let folder acc (v: Vertex<_>) = if v.GetID () = id then Some v else acc
+    __.FoldVertex folder None
+
+  member __.FindVertexBy fn =
+    let folder acc (v: Vertex<_>) = if fn v then Some v else acc
+    match __.FoldVertex folder None with
+    | Some v -> v
+    | None -> raise VertexNotFoundException
+
+  member __.TryFindVertexBy fn =
+    let folder acc (v: Vertex<_>) = if fn v then Some v else acc
+    __.FoldVertex folder None
+
   /// Fold every vertex in the graph in a depth-first manner starting from the
   /// root node.
-  member __.FoldVertexDFS fn acc =
+  /// N.B. We should try to fold on every single vertex, as there is no easy way
+  /// to check unreachable graphs from a root node.
+  member __.FoldVertexDFS root fn acc =
     let visited: HashSet<int> = new HashSet<int> ()
     let rec foldLoop acc = function
       | [] -> acc
@@ -185,11 +207,12 @@ type DiGraph<'V, 'E when 'V :> VertexData> () =
         visited.Add (v.GetID ()) |> ignore
         List.fold (fun tovisit s -> s :: tovisit) tovisit v.Succs
         |> foldLoop (fn acc v)
-    foldLoop acc [__.GetRoot ()]
+    let acc = foldLoop acc [root]
+    __.GetVertices () |> Set.toList |> foldLoop acc
 
   /// Fold every vertex in the graph in a breadth-first manner starting from the
   /// root node.
-  member __.FoldVertexBFS fn acc =
+  member __.FoldVertexBFS root fn acc =
     let visited: HashSet<int> = new HashSet<int> ()
     let queue: Queue<Vertex<'V>> = new Queue<Vertex<'V>> ()
     let enqueue vertices = vertices |> List.iter (fun v -> queue.Enqueue (v))
@@ -200,12 +223,12 @@ type DiGraph<'V, 'E when 'V :> VertexData> () =
            else visited.Add (v.GetID ()) |> ignore
                 enqueue v.Succs
                 fn acc v |> foldLoop
-    enqueue [__.GetRoot ()]
+    enqueue [root]
     foldLoop acc
 
   /// Iterate every vertex in the graph in a depth-first manner starting from
   /// the root node.
-  member __.IterVertexDFS fn =
+  member __.IterVertexDFS root fn =
     let visited: HashSet<int> = new HashSet<int> ()
     let rec iterLoop = function
       | [] -> ()
@@ -216,11 +239,12 @@ type DiGraph<'V, 'E when 'V :> VertexData> () =
         fn v
         List.fold (fun tovisit s -> s :: tovisit) tovisit v.Succs
         |> iterLoop
-    iterLoop [__.GetRoot ()]
+    iterLoop [root]
+    __.GetVertices () |> Set.toList |> iterLoop
 
   /// Iterate every vertex in the graph in a breadth-first manner starting from
   /// the root node.
-  member __.IterVertexBFS fn =
+  member __.IterVertexBFS root fn =
     let visited: HashSet<int> = new HashSet<int> ()
     let queue: Queue<Vertex<'V>> = new Queue<Vertex<'V>> ()
     let enqueue vertices = vertices |> List.iter (fun v -> queue.Enqueue (v))
@@ -232,12 +256,12 @@ type DiGraph<'V, 'E when 'V :> VertexData> () =
                 enqueue v.Succs
                 fn v
                 iterLoop ()
-    enqueue [__.GetRoot ()]
+    enqueue [root]
     iterLoop ()
 
   /// Fold every edge in the graph in a depth-first manner starting from the
   /// root node. We do not provide BFS-style folding function for edges.
-  member __.FoldEdgeDFS fn acc =
+  member __.FoldEdgeDFS root fn acc =
     let inline foldEdgeDFSAux acc tovisit fn (v: Vertex<'V>) =
       let rec foldLoop (acc, tovisit) = function
         | succ :: succs ->
@@ -254,11 +278,12 @@ type DiGraph<'V, 'E when 'V :> VertexData> () =
       | v :: tovisit ->
         visited.Add (v.GetID ()) |> ignore
         foldEdgeDFSAux acc tovisit fn v ||> foldLoop
-    foldLoop acc [__.GetRoot ()]
+    let acc = foldLoop acc [root]
+    __.GetVertices () |> Set.toList |> foldLoop acc
 
   /// Iterate every edge in the graph in a depth-first manner starting from the
   /// root node. N.B. we do not provide BFS-style folding function for edges.
-  member __.IterEdgeDFS fn =
+  member __.IterEdgeDFS root fn =
     let inline iterEdgeDFSAux tovisit fn (v: Vertex<'V>) =
       let rec iterLoop tovisit = function
         | succ :: succs ->
@@ -275,13 +300,14 @@ type DiGraph<'V, 'E when 'V :> VertexData> () =
       | v :: tovisit ->
         visited.Add (v.GetID ()) |> ignore
         iterEdgeDFSAux tovisit fn v |> iterLoop
-    iterLoop [__.GetRoot ()]
+    iterLoop [root]
+    __.GetVertices () |> Set.toList |> iterLoop
 
   /// Return the DOT-representation of this graph.
   member __.ToDOTStr name vToStrFn (_eToStrFn: Edge<'E> -> string) =
     let inline strAppend (s: string) (sb: System.Text.StringBuilder) =
       sb.Append(s)
-    let folder sb src dst =
+    let folder sb src dst _edata =
       strAppend (vToStrFn src) sb
       |> strAppend " -> "
       |> strAppend (vToStrFn dst)
@@ -291,15 +317,5 @@ type DiGraph<'V, 'E when 'V :> VertexData> () =
     let sb = strAppend "digraph " sb |> strAppend name |> strAppend " {\n"
     let sb = __.FoldEdge folder sb
     sb.Append("}\n").ToString()
-
-  /// Mark a node as a root node.
-  member __.SetRoot v = __.Root <- Some v
-
-  /// Get the root node.
-  member __.GetRoot () =
-    match __.Root with
-    | Some r -> r
-    | None -> raise RootNodeNotSetException
-
 
 // vim: set tw=80 sts=2 sw=2:

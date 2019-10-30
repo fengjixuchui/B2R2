@@ -2,6 +2,7 @@
   B2R2 - the Next-Generation Reversing Platform
 
   Author: Soomin Kim <soomink@kaist.ac.kr>
+          Sang Kil Cha <sangkilc@kaist.ac.kr>
 
   Copyright (c) SoftSec Lab. @ KAIST, since 2016
 
@@ -26,6 +27,8 @@
 
 module internal B2R2.Visualization.CoordAssignment
 
+open System
+open System.Collections.Generic
 open B2R2.BinGraph
 
 type VDirection =
@@ -36,272 +39,227 @@ type HDirection =
   | Leftmost
   | Rightmost
 
-// The horizontal interval of two consecutive blocks.
+type VertexMap = Dictionary<Vertex<VisBBlock>, Vertex<VisBBlock>>
+type FloatMap = Dictionary<Vertex<VisBBlock>, float>
+
+/// The horizontal interval of two consecutive blocks.
 [<Literal>]
 let private blockIntervalX = 50.0
 
-// The vertical interval of two consecutive blocks.
+/// The vertical interval of two consecutive blocks.
 [<Literal>]
 let private blockIntervalY = 100.0
 
-// Inner segment is an edge between two dummy nodes
-let private hasInnerSegment v =
-  if VGraph.getIsDummy v then List.exists VGraph.getIsDummy <| VGraph.getPreds v
-  else false
+/// Inner segment is an edge between two dummy nodes
+let findIncidentInnerSegmentNode (v: Vertex<VisBBlock>) =
+  if v.VData.IsDummy then
+    VisGraph.getPreds v |> List.tryFind (fun v -> v.VData.IsDummy)
+  else None
 
-let private getInnerPred v =
-  List.find VGraph.getIsDummy <| VGraph.getPreds v
+let pairID (u: Vertex<VisBBlock>) (v: Vertex<VisBBlock>) =
+  if u.VData.Layer > v.VData.Layer then u, v
+  else v, u
 
-// Type2 conflict means two inner segments are crossing
-let private markTypeTwoConflict v conflicts v0 =
-  if hasInnerSegment v && hasInnerSegment v0 then
-    let u = getInnerPred v
-    let u0 = getInnerPred v0
-    if VGraph.getPos u < VGraph.getPos u0 then Set.add v conflicts
+let addConflict (u: Vertex<VisBBlock>) (v: Vertex<VisBBlock>) conflicts =
+  Set.add (pairID u v) conflicts
+
+let checkConflict (u: Vertex<VisBBlock>) (v: Vertex<VisBBlock>) conflicts =
+  Set.contains (pairID u v) conflicts
+
+/// Type1 conflict means inner segment and non-inner segment are crossing
+let markTypeOneConflict k0 k1 conflicts (v: Vertex<_>) =
+  let mark conflicts u =
+    let k = VisGraph.getIndex u
+    if k < k0 || k1 < k then addConflict u v conflicts
     else conflicts
-  else conflicts
+  List.fold mark conflicts <| VisGraph.getPreds v
 
-let rec private findTypeTwoConflictLoop vertices conflicts i =
-  if i = 0 || i = Array.length vertices then conflicts
+let rec findTypeOneConflictLoop upperLen vertices conflicts l k0 l1 =
+  if l1 = Array.length vertices then conflicts
   else
-    let v = vertices.[i]
-    let conflicts =
-      Array.fold (markTypeTwoConflict v) conflicts vertices.[.. i - 1]
-    findTypeTwoConflictLoop vertices conflicts (i + 1)
-
-let findTypeTwoConflict_ conflicts (layer, vertices) =
-  if layer > 0 then findTypeTwoConflictLoop vertices conflicts 0 else conflicts
-
-// XXX: We need to resolve typeTwoConflicts before doing further processes
-let private findTypeTwoConflict vLayout =
-  Array.mapi (fun layer vertices -> layer, vertices) vLayout
-  |> Array.fold findTypeTwoConflict_ Set.empty
-
-// Type1 conflict means inner segment and non-inner segment are crossing
-let private markTypeOneConflict_ v0 u0 u1 v conflicts u =
-  let vPos = VGraph.getPos v
-  let uPos = VGraph.getPos u
-  if vPos < v0 && u0 < uPos then Set.add (u, v) conflicts
-  elif v0 <= vPos && (uPos < u0 || u1 < uPos) then Set.add (u, v) conflicts
-  else conflicts
-
-let private markTypeOneConflict v0 u0 u1 conflicts (v: Vertex<_>) =
-  List.fold (markTypeOneConflict_ v0 u0 u1 v) conflicts <| VGraph.getPreds v
-
-let rec private findTypeOneConflictLoop upperLen vertices conflicts v0 u0 i =
-  if i = Array.length vertices then conflicts
-  else
-    let v = vertices.[i]
-    if hasInnerSegment v || i = Array.length vertices - 1 then
-      let u1 =
-        if hasInnerSegment v then getInnerPred v |> VGraph.getPos
-        else upperLen
+    let v = vertices.[l1]
+    let w = findIncidentInnerSegmentNode v
+    if w.IsSome || l1 = Array.length vertices - 1 then
+      let k1 = if w.IsSome then Option.get w |> VisGraph.getIndex else upperLen
       let conflicts =
-        Array.fold (markTypeOneConflict v0 u0 u1) conflicts vertices.[.. i]
-      let v1 = VGraph.getPos v
-      findTypeOneConflictLoop upperLen vertices conflicts v1 u1 (i + 1)
+        Array.fold (markTypeOneConflict k0 k1) conflicts vertices.[l .. l1]
+      findTypeOneConflictLoop upperLen vertices conflicts (l1 + 1) k1 (l1 + 1)
     else
-      findTypeOneConflictLoop upperLen vertices conflicts v0 u0 (i + 1)
+      findTypeOneConflictLoop upperLen vertices conflicts l k0 (l1 + 1)
 
-let private findTypeOneConflict_ (vLayout: _ [] []) conflicts (layer, vertices) =
-  if layer > 0 then
+let findTypeOneConflictAux (vLayout: _ [][]) conflicts (layer, vertices) =
+  if layer > 0 && layer < Array.length vLayout - 1 then
     let nUpperVertices = Array.length vLayout.[layer - 1]
-    findTypeOneConflictLoop nUpperVertices vertices conflicts -1 -1 0
+    findTypeOneConflictLoop nUpperVertices vertices conflicts 0 -1 0
   else conflicts
 
-let private findTypeOneConflict vLayout =
+/// Alg 1 of Brandes et al.
+let findTypeOneConflict vLayout =
   Array.mapi (fun layer vertices -> layer, vertices) vLayout
-  |> Array.fold (findTypeOneConflict_ vLayout) Set.empty
+  |> Array.fold (findTypeOneConflictAux vLayout) Set.empty
 
-let private preprocess vLayout =
-  let typeTwoConflicts = findTypeTwoConflict vLayout
-  let typeOneConflicts = findTypeOneConflict vLayout
-#if DEBUG
-  Dbg.logn "TypeTwoConflicts:"
-  typeTwoConflicts
-  |> Set.iter (fun v -> sprintf "%d" <| VGraph.getID v |> Dbg.logn)
-  Dbg.logn "TypeOneConflicts:"
-  typeOneConflicts
-  |> Set.iter (fun (v, w) ->
-            sprintf "%d %d" (VGraph.getID v) (VGraph.getID w) |> Dbg.logn)
-#endif
-  typeTwoConflicts, typeOneConflicts
+let getLayerByDirection (vLayout: Vertex<_> [][]) idx = function
+  | Leftmost -> vLayout.[idx]
+  | Rightmost -> Array.rev vLayout.[idx]
 
-let private setRootAlignR conflict vDir hDir v (root, align, r) um =
-  let cond =
-    match vDir, hDir with
-    | Topmost, Leftmost ->
-      Map.find v align = v &&
-        not (Set.contains (um, v) conflict) &&
-        r < VGraph.getPos um
-    | Topmost, Rightmost ->
-      Map.find v align = v &&
-        not (Set.contains (um, v) conflict) &&
-        r > VGraph.getPos um
-    | Bottommost, Leftmost ->
-      Map.find v align = v &&
-        not (Set.contains (v, um) conflict) &&
-        r < VGraph.getPos um
-    | Bottommost, Rightmost ->
-      Map.find v align = v &&
-        not (Set.contains (v, um) conflict) &&
-        r > VGraph.getPos um
-  if cond then
-    let align = Map.add um v align
-    let root = Map.add v (Map.find um root) root
-    let align = Map.add v (Map.find v root) align
-    let r = VGraph.getPos um
-    root, align, r
-  else
-    root, align, r
+let getMedianNeighbors (sortedNeighbors: Vertex<VisBBlock> []) hDir =
+  let middle = float (sortedNeighbors.Length - 1) / 2.0
+  let a = int (floor middle)
+  let b = int (ceil middle)
+  match hDir with
+  | _ when a = b -> [ a ]
+  | Leftmost -> [ a; b ]
+  | Rightmost -> [ b; a ]
 
-let private vAlignBody conflicts vDir hDir (root, align, r) (v: Vertex<_>) =
-  let vs =
+let isBefore a b = function
+  | Leftmost -> a < b
+  | Rightmost -> a > b
+
+/// Alg 2 of Brandes et al.
+let vAlign vGraph vLayout maxLayer conflicts vDir hDir =
+  let layers, neighborFn =
     match vDir with
-    | Topmost -> List.sortBy VGraph.getPos v.Preds |> List.toArray
-    | Bottommost -> List.sortBy VGraph.getPos v.Succs |> List.toArray
-  let d = Array.length vs
-  if d > 0 then
-    let lowMid = floor (float (d - 1) / 2.0) |> int
-    let highMid = ceil (float (d - 1) / 2.0) |> int
-    let vs =
-      if lowMid = highMid then
-        [ vs.[lowMid] ]
+    | Topmost ->
+      [0 .. (maxLayer - 1)], (fun (v: Vertex<VisBBlock>) -> v.Preds)
+    | Bottommost ->
+      [(maxLayer - 1) .. -1 .. 0], (fun (v: Vertex<VisBBlock>) -> v.Succs)
+  let root = VertexMap ()
+  let align = VertexMap ()
+  (vGraph: VisGraph).IterVertex (fun v -> root.[v] <- v; align.[v] <- v)
+  layers
+  |> List.iter (fun i ->
+    let vertices = getLayerByDirection vLayout i hDir
+    let mutable r =
+      match hDir with
+      | Leftmost -> Int32.MinValue
+      | Rightmost -> Int32.MaxValue
+    for v in vertices do
+      let neighbors = neighborFn v
+      if List.isEmpty neighbors then ()
       else
-        match hDir with
-        | Leftmost -> [ vs.[lowMid] ; vs.[highMid] ]
-        | Rightmost -> [ vs.[highMid] ; vs.[lowMid] ]
-    List.fold (setRootAlignR conflicts vDir hDir v) (root, align, r) vs
-  else
-    root, align, r
-
-let private vAlignLoop (vLayout: Vertex<_> [] []) conflicts vDir hDir (root, align) layer =
-  let rInit =
-    match hDir with
-    | Leftmost -> System.Int32.MinValue
-    | Rightmost -> System.Int32.MaxValue
-  let vertices =
-    match hDir with
-    | Leftmost -> vLayout.[layer]
-    | Rightmost -> Array.rev vLayout.[layer]
-  let root, align, _ =
-    Array.fold (vAlignBody conflicts vDir hDir) (root, align, rInit) vertices
+        let neighbors = Array.ofList neighbors |> Array.sortBy VisGraph.getIndex
+        let medians = getMedianNeighbors neighbors hDir
+        for m in medians do
+          let w = neighbors.[m]
+          if align.[v] = v
+            && not (checkConflict w v conflicts)
+            && isBefore r (VisGraph.getIndex w) hDir
+          then
+            align.[w] <- v
+            root.[v] <- root.[w]
+            align.[v] <- root.[v]
+            r <- VisGraph.getIndex w
+          else ()
+        done
+    done)
   root, align
 
-let private vAlign (vGraph: VGraph) vLayout maxLayer conflicts vDir hDir =
-  let layers =
-    match vDir with
-    | Topmost -> [1 .. maxLayer]
-    | Bottommost -> [0 .. maxLayer - 1] |> List.rev
-  let initMap =
-    vGraph.FoldVertex (fun map v -> Map.add v v map) Map.empty
-  List.fold (vAlignLoop vLayout conflicts vDir hDir) (initMap, initMap) layers
+let inBound (v: Vertex<VisBBlock>) counts = function
+  | Leftmost -> v.VData.Index > 0
+  | Rightmost -> v.VData.Index < counts - 1
 
-let private isBorder vertices v = function
-  | Leftmost -> VGraph.getPos v > 0
-  | Rightmost -> VGraph.getPos v < Array.length vertices - 1
+let getPred (vertices: Vertex<VisBBlock> []) idx = function
+  | Leftmost -> vertices.[idx - 1]
+  | Rightmost -> vertices.[idx + 1]
 
-let private calcShift sink shift xs u v = function
+let fixShift (xs: FloatMap) (shift: FloatMap) (sink: VertexMap) u v = function
   | Leftmost ->
-    min
-      (Map.find (Map.find u sink) shift)
-      (Map.find v xs - Map.find u xs - blockIntervalX)
+    shift.[sink.[u]] <-
+      min (shift.[sink.[u]]) (xs.[v] - xs.[u] - u.VData.Width - blockIntervalX)
   | Rightmost ->
-    max
-      (Map.find (Map.find u sink) shift)
-      (Map.find v xs - Map.find u xs + blockIntervalX)
+    shift.[sink.[u]] <-
+      max (shift.[sink.[u]]) (xs.[v] - xs.[u] + v.VData.Width + blockIntervalX)
 
-let private calcXs xs v u w = function
+let adjustX (xs: FloatMap) u v = function
   | Leftmost ->
-    max (Map.find v xs) (Map.find u xs + VGraph.getWidth w + blockIntervalX)
+    xs.[v] <- max xs.[v] (xs.[u] + u.VData.Width + blockIntervalX)
   | Rightmost ->
-    min (Map.find v xs) (Map.find u xs - VGraph.getWidth w - blockIntervalX)
+    xs.[v] <-
+      min xs.[v] (xs.[u] - v.VData.Width - u.VData.Width - blockIntervalX)
 
-let rec private placeBlock vLayout root align hDir (sink, shift, xs) v =
-  match Map.tryFind v xs with
-  | Some (_) -> sink, shift, xs
-  | None ->
-    let xs = Map.add v 0.0 xs
-    let w = v
-    placeBlockLoop vLayout root align hDir sink shift xs v w
+let rec placeBlock vLayout hDir root align sink shift xs v =
+  if not (Double.IsNaN (xs: FloatMap).[v]) then ()
+  else
+    let mutable w = v
+    xs.[v] <- 0.0
+    updateBlock vLayout hDir root align sink shift xs v w
+    w <- (align: VertexMap).[w]
+    while w <> v do
+      updateBlock vLayout hDir root align sink shift xs v w
+      w <- (align: VertexMap).[w]
+and updateBlock vLayout hDir root align sink shift xs v w =
+  let vertices = (vLayout: Vertex<_> [][]).[VisGraph.getLayer w]
+  if inBound w vertices.Length hDir then
+    let idx = Array.findIndex (fun v -> v = w) vertices
+    let u = (root: VertexMap).[getPred vertices idx hDir]
+    placeBlock vLayout hDir root align sink shift xs u
+    if (sink: VertexMap).[v] = v then sink.[v] <- sink.[u] else ()
+    if sink.[v] <> sink.[u] then fixShift xs shift sink u v hDir
+    else adjustX xs u v hDir
+  else ()
 
-and placeBlockLoop (vLayout: Vertex<_> [] []) root align hDir sink shift xs v w =
-  let sink, shift, xs =
-    let vertices = vLayout.[VGraph.getLayer w]
-    if isBorder vertices w hDir then
-      let idx = Array.findIndex (fun v -> v = w) vertices
-      let u, w =
-        match hDir with
-        | Leftmost -> Map.find vertices.[idx - 1] root, vertices.[idx - 1]
-        | Rightmost -> Map.find vertices.[idx + 1] root, vertices.[idx + 1]
-      let sink, shift, xs =
-        placeBlock vLayout root align hDir (sink, shift, xs) u
-      let sink =
-        if Map.find v sink = v then Map.add v (Map.find u sink) sink
-        else sink
-      let shift =
-        if Map.find v sink <> Map.find u sink then
-          Map.add (Map.find u sink) (calcShift sink shift xs u v hDir) shift
-        else shift
-      let xs =
-        if Map.find v sink = Map.find u sink then
-          Map.add v (calcXs xs v u w hDir) xs
-        else xs
-      sink, shift, xs
-    else sink, shift, xs
-  let w = Map.find w align
-  if w <> v then placeBlockLoop vLayout root align hDir sink shift xs v w
-  else sink, shift, xs
+/// Alg 3 of Brandes et al.
+let hCompact vGraph vLayout (root: VertexMap) (align: VertexMap) hDir =
+  let sink = VertexMap ()
+  let shift = FloatMap ()
+  let xs = FloatMap ()
+  (vGraph: VisGraph).IterVertex (fun v ->
+    sink.[v] <- v
+    shift.[v] <-
+      if hDir = Leftmost then Double.PositiveInfinity
+      else Double.NegativeInfinity
+    xs.[v] <- Double.NaN
+  )
+  vGraph.IterVertex (fun v ->
+    if root.[v] = v then placeBlock vLayout hDir root align sink shift xs v
+    else ()
+  )
+  vGraph.IterVertex (fun v ->
+    xs.[v] <- xs.[root.[v]]
+    let s = shift.[sink.[root.[v]]]
+    if s < Double.PositiveInfinity && s > Double.NegativeInfinity then
+      xs.[v] <- xs.[v] + s
+    else ()
+  )
+  xs
 
-let private updateXs root sink shift xs v =
-  let w = Map.find v root
-  let xs = Map.add v (Map.find w xs) xs
-  let shiftValue = Map.find (Map.find w sink) shift
-  if shiftValue < System.Double.MaxValue then
-    Map.add v ((Map.find v xs) + shiftValue) xs
-  else xs
+let alignAndCompact vGraph vLayout maxLayer conflicts vDir hDir =
+  let root, align = vAlign vGraph vLayout maxLayer conflicts vDir hDir
+  hCompact vGraph vLayout root align hDir
 
-let private hCompact (vGraph: VGraph) vLayout root align hDir =
-  let folder sink v = Map.add v v sink
-  let sink = vGraph.FoldVertex folder Map.empty
-  let shift = Map.map (fun _ _ -> System.Double.MaxValue) sink
-  let xs = Map.empty
-  let sink, shift, xs =
-    Map.fold
-      (fun acc v w ->
-        if v = w then placeBlock vLayout root align hDir acc v else acc)
-      (sink, shift, xs)
-      root
-  vGraph.FoldVertexDFS (updateXs root sink shift) xs
-
-let private calcPosInfo xs acc (vertices: Vertex<_> []) =
-  let left = Map.find vertices.[0] xs
-  let width =
-    Map.find vertices.[Array.length vertices - 1] xs - Map.find vertices.[0] xs
+let calcPosInfo (xs: FloatMap) acc (vertices: Vertex<_> []) =
+  let left = xs.[vertices.[0]]
+  let width = xs.[vertices.[Array.length vertices - 1]] - xs.[vertices.[0]]
   (left, width) :: acc
 
-let private getPosInfo vLayout xs =
+let getIndexInfo vLayout (xs: FloatMap) =
   let posInfos = Array.fold (calcPosInfo xs) [] vLayout
   let lefts, widths = List.unzip posInfos
   List.min lefts, List.min widths
 
-let private alignAssignments vLayout xAlignments =
-  let posInfos = List.map (getPosInfo vLayout) xAlignments
+let assign vLayout xAlignments =
+  let posInfos = List.map (getIndexInfo vLayout) xAlignments
   let minLeft, _ = List.minBy (fun (_, width) -> width) posInfos
-  List.map (fun ((left, _), xs) ->
-    Map.map (fun _ x -> x + minLeft - left) xs) (List.zip posInfos xAlignments)
+  List.iter (fun ((left, _), xs: FloatMap) ->
+    xs.Keys
+    |> Seq.toArray
+    |> Array.iter (fun k ->
+      xs.[k] <- xs.[k] + minLeft - left))
+      (List.zip posInfos xAlignments)
+  xAlignments
 
-let private collectX xPerV xs =
-  Map.fold (fun xPerV v x ->
+let collectX xPerV (xs: FloatMap) =
+  xs.Keys
+  |> Seq.fold (fun xPerV v ->
     match Map.tryFind v xPerV with
-    | Some (xs) -> Map.add v (x :: xs) xPerV
-    | None -> Map.add v [x] xPerV) xPerV xs
+    | Some (acc) -> Map.add v (xs.[v] :: acc) xPerV
+    | None -> Map.add v [xs.[v]] xPerV) xPerV
 
-let private setXPos (v: Vertex<VNode>) x =
+let setXPos (v: Vertex<VisBBlock>) x =
   let vData = v.VData
-  vData.XPos <- x
+  vData.Coordinate.X <- x
 
-let private averageMedian (vGraph: VGraph) xAlignments =
+let averageMedian (xAlignments: FloatMap list) =
   let xPerV = List.fold collectX Map.empty xAlignments
   let xPerV = Map.map (fun v xs -> List.toArray xs) xPerV
   let xPerV = Map.map (fun v xs -> Array.sort xs) xPerV
@@ -314,71 +272,49 @@ let private averageMedian (vGraph: VGraph) xAlignments =
   let medians = Map.map (fun _ xs -> xs - mid) medians
   Map.iter setXPos medians
 
-let private calcXAlignment vGraph vLayout maxLayer t1cs xAlignments dir =
-  let vDir, hDir = dir
-  let root, align = vAlign vGraph vLayout maxLayer t1cs vDir hDir
-  let xs = hCompact vGraph vLayout root align hDir
-#if DEBUG
-  Dbg.logn <| sprintf "vAlign Directions: %A %A" vDir hDir
-  Dbg.logn "Root:"
-  Map.iter (fun k v ->
-    sprintf "%d : %d" (VGraph.getID k) (VGraph.getID v) |> Dbg.logn) root
-  Dbg.logn "Align:"
-  Map.iter
-    (fun k v -> sprintf "%d : %d" (VGraph.getID k) (VGraph.getID v) |> Dbg.logn)
-    align
-  Dbg.logn "Xs:"
-  Map.iter
-    (fun k v ->
-      sprintf "%d : %f %f" (VGraph.getID k) v (v + VGraph.getWidth k)
-      |> Dbg.logn)
-    xs
-#endif
-  xs :: xAlignments
-
-let private assignXCoordinates (vGraph: VGraph) vLayout =
+/// This algorithm is from Brandes et al., Fast and Simple Horizontal Coordinate
+/// Assignment.
+let assignXCoordinates (vGraph: VisGraph) vLayout =
   let maxLayer = Array.length vLayout - 1
-  let _typeTwoConflicts, typeOneConflicts = preprocess vLayout
-  let xAlignments =
-    List.fold
-      (calcXAlignment vGraph vLayout maxLayer typeOneConflicts)
-      []
-      [ (Topmost, Leftmost) ; (Topmost, Rightmost) ;
-        (Bottommost, Leftmost) ; (Bottommost, Rightmost) ]
-  let xAlignments = alignAssignments vLayout xAlignments
-  averageMedian vGraph xAlignments
+  let conflicts = findTypeOneConflict vLayout
+  [ alignAndCompact vGraph vLayout maxLayer conflicts Topmost Leftmost
+    alignAndCompact vGraph vLayout maxLayer conflicts Topmost Rightmost
+    alignAndCompact vGraph vLayout maxLayer conflicts Bottommost Leftmost
+    alignAndCompact vGraph vLayout maxLayer conflicts Bottommost Rightmost ]
+  |> assign vLayout
+  |> averageMedian
 
-let private assignYCoordinate y vertices =
-  Array.iter (fun (v: Vertex<VNode>) ->
+let assignYCoordinate y vertices =
+  Array.iter (fun (v: Vertex<VisBBlock>) ->
     let vData = v.VData
-    vData.YPos <- y) vertices
-  let maxHeight = Array.map VGraph.getHeight vertices |> Array.max
+    vData.Coordinate.Y <- y) vertices
+  let maxHeight = Array.map VisGraph.getHeight vertices |> Array.max
   y + maxHeight + blockIntervalY
 
-let private assignYCoordinates vLayout =
+let assignYCoordinates vLayout =
   let maxLayer = Array.length vLayout - 1
   List.map (fun layer -> vLayout.[layer]) [ 0 .. maxLayer ]
   |> List.fold assignYCoordinate 0.0 |> ignore
 
-let private adjustXCoordinate (v: Vertex<VNode>) =
-  let vData = v.VData
-  vData.XPos <- vData.XPos - vData.Width / 2.0
+let adjustXCoordinate (v: Vertex<VisBBlock>) =
+  let coord = v.VData.Coordinate
+  coord.X <- coord.X - v.VData.Width / 2.0
 
-let private getLeftCoordinate coords (v: Vertex<VNode>) =
+let getLeftCoordinate xs (v: Vertex<VisBBlock>) =
   let vData = v.VData
-  if vData.IsDummy then coords
-  else vData.XPos :: coords
+  if vData.IsDummy then xs
+  else vData.Coordinate.X :: xs
 
-let private getRightCoordinate coords (v: Vertex<VNode>) =
+let getRightCoordinate xs (v: Vertex<VisBBlock>) =
   let vData = v.VData
-  if vData.IsDummy then coords
-  else (vData.XPos + vData.Width) :: coords
+  if vData.IsDummy then xs
+  else (vData.Coordinate.X + vData.Width) :: xs
 
-let private shiftXCoordinate shift (v: Vertex<VNode>) =
+let shiftXCoordinate shift (v: Vertex<VisBBlock>) =
   let vData = v.VData
-  vData.XPos <- vData.XPos - shift
+  vData.Coordinate.X <- vData.Coordinate.X - shift
 
-let private adjustCoordinates (vGraph: VGraph) =
+let adjustCoordinates (vGraph: VisGraph) =
   vGraph.IterVertex adjustXCoordinate
   let leftMost = vGraph.FoldVertex getLeftCoordinate [] |> List.min
   let rightMost = vGraph.FoldVertex getRightCoordinate [] |> List.max

@@ -1,8 +1,8 @@
 (*
   B2R2 - the Next-Generation Reversing Platform
 
-  Author: DongYeop Oh <oh51dy@kaist.ac.kr>
-          Seung Il Jung <sijung@kaist.ac.kr>
+  Author: Seung Il Jung <sijung@kaist.ac.kr>
+          Sang Kil Cha <sangkilc@kaist.ac.kr>
 
   Copyright (c) SoftSec Lab. @ KAIST, since 2016
 
@@ -28,17 +28,14 @@
 module internal B2R2.FrontEnd.ARM32.Disasm
 
 open B2R2
+open B2R2.FrontEnd
 open System.Text
 
-let addrToString (addr: Addr) wordSize verbose =
-  if verbose then
-    if wordSize = WordSize.Bit32 then addr.ToString("X8") + ": "
-    else addr.ToString("X16") + ": "
-  else ""
-
-let inline printAddr (addr: Addr) verbose (sb: StringBuilder) =
-  if not verbose then sb
-  else (sb.Append (addr.ToString ("X8"))).Append (": ")
+let inline buildAddr (addr: Addr) verbose builder acc =
+  if not verbose then acc
+  else
+    builder AsmWordKind.Address (addr.ToString ("X8")) acc
+    |> builder AsmWordKind.String (": ")
 
 let opCodeToString = function
   | Op.MOV -> "mov"
@@ -506,9 +503,6 @@ let opCodeToString = function
   | Op.InvalidOP -> "(illegal)"
   | _ -> failwith "Unknown opcode encountered."
 
-let inline printOpcode ins (sb: StringBuilder) =
-  sb.Append (opCodeToString ins.Opcode)
-
 let condToString = function
   | Some Condition.EQ -> "eq"
   | Some Condition.NE -> "ne"
@@ -530,9 +524,6 @@ let condToString = function
   | Some Condition.NV -> "nv"
   | Some Condition.UN | None -> ""
   | _ -> failwith "Unknown condition encountered."
-
-let inline printCond ins (sb: StringBuilder) =
-  sb.Append (condToString ins.Condition)
 
 let SIMDTypToStr = function
   | SIMDTyp8 -> ".8"
@@ -560,19 +551,36 @@ let qualifierToStr = function
   | W -> ".w"
   | N -> ".n"
 
-let inline printQualifier ins (sb: StringBuilder) =
+let inline appendQualifier ins (sb: StringBuilder) =
   match ins.Qualifier with
-  | None -> sb
+  | None ->  sb
   | Some q -> sb.Append (qualifierToStr q)
 
-let inline printSIMDDataTypes ins (sb: StringBuilder) =
+let inline appendSIMDDataTypes ins (sb: StringBuilder) =
   match ins.SIMDTyp with
   | None -> sb
   | Some (OneDT dt) -> sb.Append (SIMDTypToStr dt)
   | Some (TwoDT (dt1, dt2)) ->
     (sb.Append (SIMDTypToStr dt1)).Append (SIMDTypToStr dt2)
 
-let rec regToString = function
+let inline buildOpcode ins builder acc =
+  let sb = StringBuilder ()
+  let sb = sb.Append (opCodeToString ins.Opcode)
+  let sb = sb.Append (condToString ins.Condition)
+  let sb = appendQualifier ins sb
+  let sb = appendSIMDDataTypes ins sb
+  builder AsmWordKind.Mnemonic (sb.ToString ()) acc
+
+let existRegList = function
+  | TwoOperands (_, OprRegList _) -> true
+  | _ -> false
+
+let isRFEorSRS = function
+  | Op.RFE | Op.RFEDA | Op.RFEDB | Op.RFEIA | Op.RFEIB
+  | Op.SRS | Op.SRSDA | Op.SRSDB | Op.SRSIA | Op.SRSIB -> true
+  | _ -> false
+
+let regToString = function
   | R.R0 -> "r0"
   | R.R1 -> "r1"
   | R.R2 -> "r2"
@@ -744,10 +752,20 @@ let rec regToString = function
   | R.SPfiq -> "sp_fiq"
   | R.LRfiq -> "lr_fiq"
   | R.SPSRfiq -> "spsr_fiq"
-  | reg -> let struct (r, b) = ParseUtils.parseRegW reg
-           if b then regToString r + "!" else regToString r
+  | _ -> failwith "Invalid Register"
 
-let psrFlagToString = function
+let buildReg ins isRegList reg builder acc =
+  let reg = regToString reg
+  match ins.WriteBack with
+  | Some true when existRegList ins.Operands && not isRegList ->
+    builder AsmWordKind.Variable reg acc |> builder AsmWordKind.String "!"
+  | Some true when isRFEorSRS ins.Opcode ->
+    builder AsmWordKind.Variable reg acc |> builder AsmWordKind.String "!"
+  | _ ->
+    builder AsmWordKind.Variable reg acc
+
+/// See A8-499 the description of <spec_reg>.
+let flagToString = function
   | PSRc -> "_c"
   | PSRx -> "_x"
   | PSRxc -> "_xc"
@@ -762,59 +780,90 @@ let psrFlagToString = function
   | PSRfs -> "_fs"
   | PSRfsc -> "_fsc"
   | PSRfsx -> "_fsx"
-  | PSRfsxc -> "_sxc"
+  | PSRfsxc -> "_fsxc"
   | PSRnzcv -> "_nzcv"
   | PSRnzcvq -> "_nzcvq"
   | PSRg -> "_g"
   | PSRnzcvqg -> "_nzcvqg"
 
-let specRegToString reg pFlag (sb: StringBuilder) =
+let specRegToString ins reg pFlag builder acc =
   match pFlag with
-  | None -> sb.Append (regToString reg) // FIXME: exist?
-  | Some f -> (sb.Append (regToString reg)).Append (psrFlagToString f)
+  | None -> buildReg ins false reg builder acc
+  | Some f ->
+    buildReg ins false reg builder acc
+    |> builder AsmWordKind.String (flagToString f)
 
-let regListToString list =
-  let rL = list |> List.map regToString
-                |> List.reduce (fun s1 s2 -> s1 + ", " + s2)
-  "{" + rL + "}"
+let regListToString ins list builder acc =
+  let acc = builder AsmWordKind.String "{" acc
+  let len = List.length list
+  list
+  |> List.fold (fun (acc, idx) r ->
+    let acc = buildReg ins true r builder acc
+    if idx + 1 = len then (acc, idx + 1)
+    else builder AsmWordKind.String ", " acc, idx + 1) (acc, 0)
+  |> fst
+  |> builder AsmWordKind.String "}"
 
-let simdToString s =
+let simdToString ins s builder acc =
   match s with
-  | Vector v -> regToString v
-  | Scalar (v, None) -> (regToString v) + "[]"
-  | Scalar (v, Some i) -> (regToString v) + "[" + (string i) + "]"
+  | Vector v -> buildReg ins false v builder acc
+  | Scalar (v, None) ->
+    buildReg ins false v builder acc
+    |> builder AsmWordKind.String "[]"
+  | Scalar (v, Some i) ->
+    buildReg ins false v builder acc
+    |> builder AsmWordKind.String "["
+    |> builder AsmWordKind.String (string i)
+    |> builder AsmWordKind.String "]"
 
-let simdOprToString simd (sb: StringBuilder) =
+let simdOprToString ins simd builder acc =
   match simd with
-  | SFReg s -> sb.Append (simdToString s)
-  | OneReg s -> ((sb.Append ("{")).Append (simdToString s)).Append ("}")
+  | SFReg s -> simdToString ins s builder acc
+  | OneReg s ->
+    builder AsmWordKind.String "{" acc
+    |> simdToString ins s builder
+    |> builder AsmWordKind.String "}"
   | TwoRegs (s1, s2) ->
-    let sb = ((sb.Append ("{")).Append (simdToString s1)).Append (", ")
-    (sb.Append (simdToString s2)).Append ("}")
+    builder AsmWordKind.String "{" acc
+    |> simdToString ins s1 builder
+    |> builder AsmWordKind.String ", "
+    |> simdToString ins s2 builder
+    |> builder AsmWordKind.String "}"
   | ThreeRegs (s1, s2, s3) ->
-    let sb = ((sb.Append ("{")).Append (simdToString s1)).Append (", ")
-    let sb = (sb.Append (simdToString s2)).Append (", ")
-    (sb.Append (simdToString s3)).Append ("}")
+    builder AsmWordKind.String "{" acc
+    |> simdToString ins s1 builder
+    |> builder AsmWordKind.String ", "
+    |> simdToString ins s2 builder
+    |> builder AsmWordKind.String ", "
+    |> simdToString ins s3 builder
+    |> builder AsmWordKind.String "}"
   | FourRegs (s1, s2, s3, s4) ->
-    let sb = ((sb.Append ("{")).Append (simdToString s1)).Append (", ")
-    let sb = (sb.Append (simdToString s2)).Append (", ")
-    let sb = (sb.Append (simdToString s3)).Append (", ")
-    (sb.Append (simdToString s4)).Append ("}")
+    builder AsmWordKind.String "{" acc
+    |> simdToString ins s1 builder
+    |> builder AsmWordKind.String ", "
+    |> simdToString ins s2 builder
+    |> builder AsmWordKind.String ", "
+    |> simdToString ins s3 builder
+    |> builder AsmWordKind.String ", "
+    |> simdToString ins s4 builder
+    |> builder AsmWordKind.String "}"
 
 let signToString = function
   | None -> ""
   | Some Plus -> ""
   | Some Minus -> "-"
 
-let immToString (imm: int64) sign (sb: StringBuilder) =
-  let sb = ((sb.Append ("#")).Append (signToString sign)).Append ("0x")
-  sb.Append (imm.ToString ("X"))
+let immToString (imm: int64) sign builder acc =
+  builder AsmWordKind.String "#" acc
+  |> builder AsmWordKind.String (signToString sign)
+  |> builder AsmWordKind.Value ("0x" + imm.ToString ("X"))
 
-let fpImmToString (fp: float) (sb: StringBuilder) =
-  (sb.Append ("#")).Append (fp.ToString ("N8"))
+let fpImmToString (fp: float) builder acc =
+  builder AsmWordKind.String "#" acc
+  |> builder AsmWordKind.Value (fp.ToString ("N8"))
 
-let optionToString (opt: int64) (sb: StringBuilder) =
-  (sb.Append ("0x")).Append (opt.ToString ("X"))
+let optionToString (opt: int64) builder acc =
+  builder AsmWordKind.Value ("0x" + opt.ToString ("X")) acc
 
 let srTypeToString = function
   | SRTypeLSL -> "lsl"
@@ -823,90 +872,115 @@ let srTypeToString = function
   | SRTypeROR -> "ror"
   | SRTypeRRX -> "rrx"
 
-let amountToString amount (sb: StringBuilder) =
-  match amount with
-  | Imm i -> immToString (int64 i) None sb
+let prependDelimiter delimiter builder acc =
+  match delimiter with
+  | None -> acc
+  | Some delim ->
+    builder AsmWordKind.String delim acc
 
-let shiftToString shift (sb: StringBuilder) =
+let shiftToString shift delim builder acc =
   match shift with
-  | (_, Imm 0u) -> sb.Remove (sb.Length - 2, 2)
-  | (s, amt) -> (sb.Append (srTypeToString s)).Append (" ")
-                |> amountToString amt
+  | _, Imm 0u -> acc
+  | s, Imm i ->
+    prependDelimiter delim builder acc
+    |> builder AsmWordKind.String (srTypeToString s)
+    |> builder AsmWordKind.String " "
+    |> immToString (int64 i) None builder
 
-let regShiftToString shift reg (sb: StringBuilder) =
-  let sb = (sb.Append (srTypeToString shift)).Append (" ")
-  sb.Append (regToString reg)
+let regShiftToString ins shift reg builder acc =
+  builder AsmWordKind.String (srTypeToString shift) acc
+  |> builder AsmWordKind.String " "
+  |> buildReg ins false reg builder
 
 let delimPostIdx = function
   | PostIdxMode _ -> "], "
   | _ -> ", "
 
-let immOffsetToString addrMode offset (sb: StringBuilder) =
+let immOffsetToString ins addrMode offset builder acc =
   match offset with
-  | reg, _, None | reg, _, Some 0L -> sb.Append (regToString reg)
+  | reg, _, None | reg, _, Some 0L -> buildReg ins false reg builder acc
   | reg, s, Some imm ->
-    (sb.Append (regToString reg)).Append (delimPostIdx addrMode)
-    |> immToString imm s
+    buildReg ins false reg builder acc
+    |> builder AsmWordKind.String (delimPostIdx addrMode)
+    |> immToString imm s builder
 
-let regOffsetToString addrMode offset (sb: StringBuilder) =
+let regOffsetToString ins addrMode offset builder acc =
   match offset with
   | bReg, s, reg, None ->
-    let sb = (sb.Append (regToString bReg)).Append (delimPostIdx addrMode)
-    (sb.Append (signToString s)).Append (regToString reg)
-  | bReg, s, reg, Some shf ->
-    let sb = (sb.Append (regToString bReg)).Append (delimPostIdx addrMode)
-    ((sb.Append (signToString s)).Append (regToString reg)).Append (", ")
-    |> shiftToString shf
+    buildReg ins false bReg builder acc
+    |> builder AsmWordKind.String (delimPostIdx addrMode)
+    |> builder AsmWordKind.String (signToString s)
+    |> buildReg ins false reg builder
+  | bReg, s, reg, Some shift ->
+    buildReg ins false bReg builder acc
+    |> builder AsmWordKind.String (delimPostIdx addrMode)
+    |> builder AsmWordKind.String (signToString s)
+    |> buildReg ins false reg builder
+    |> shiftToString shift (Some ", ") builder
 
-let alignOffsetToString offset (sb: StringBuilder) =
+let alignOffsetToString ins offset builder acc =
   match offset with
   | bReg, Some align, None ->
-    ((sb.Append (regToString bReg)).Append (":")).Append (string align)
+    buildReg ins false bReg builder acc
+    |> builder AsmWordKind.String ":"
+    |> builder AsmWordKind.String (string align)
   | bReg, Some align, Some reg ->
-    let sb = (sb.Append (regToString bReg)).Append (":")
-    ((sb.Append (string align)).Append ("], ")).Append (regToString reg)
+    buildReg ins false bReg builder acc
+    |> builder AsmWordKind.String ":"
+    |> builder AsmWordKind.String (string align)
+    |> builder AsmWordKind.String "], "
+    |> buildReg ins false reg builder
   | bReg, None, Some reg ->
-    ((sb.Append (regToString bReg)).Append ("], ")).Append (regToString reg)
-  | bReg, None, None -> sb.Append (regToString bReg)
+    buildReg ins false bReg builder acc
+    |> builder AsmWordKind.String "], "
+    |> buildReg ins false reg builder
+  | bReg, None, None -> buildReg ins false bReg builder acc
 
-let offsetToString addrMode offset sb =
+let offsetToString ins addrMode offset builder acc =
   match offset with
-  | ImmOffset (reg, s, imm) -> immOffsetToString addrMode (reg, s, imm) sb
+  | ImmOffset (reg, s, imm) ->
+    immOffsetToString ins addrMode (reg, s, imm) builder acc
   | RegOffset (bReg, s, reg, shf) ->
-    regOffsetToString addrMode (bReg, s, reg, shf) sb
-  | AlignOffset (bReg, align, reg) -> alignOffsetToString (bReg, align, reg) sb
+    regOffsetToString ins addrMode (bReg, s, reg, shf) builder acc
+  | AlignOffset (bReg, align, reg) ->
+    alignOffsetToString ins (bReg, align, reg) builder acc
 
 let processAddrExn32 ins addr =
+  let pc =
+    if ins.Mode = ArchOperationMode.ThumbMode then addr + 4UL else addr + 8UL
   match ins.Opcode with
-  | Op.CBZ | Op.CBNZ -> addr + 4UL
-  | Op.B | Op.BL when ins.Mode = ArchOperationMode.ThumbMode -> addr + 4UL
-  | Op.BLX | Op.ADR | Op.LDR when ins.Mode = ArchOperationMode.ThumbMode ->
-    ParseUtils.align (addr + 4UL) 4UL
-  | Op.BL | Op.BLX | Op.ADR -> ParseUtils.align (addr + 8UL) 4UL
-  | Op.B | Op.LDR -> addr + 8UL
+  | Op.CBZ | Op.CBNZ
+  | Op.B | Op.BX -> pc
+  | Op.BL | Op.BLX -> ParseUtils.align pc 4UL
+  | Op.ADR -> ParseUtils.align pc 4UL
   | _ -> addr
 
-let postBracket addrMode (sb: StringBuilder) =
-  match addrMode with
-  | OffsetMode _ -> sb.Append ("]")
-  | PreIdxMode _ -> sb.Append ("]!")
-  | PostIdxMode _ -> sb
-  | UnIdxMode _ -> sb.Append ("}")
-  | LiteralMode _ -> sb
-
-let memToString ins addr addrMode (sb: StringBuilder) =
+let memHead ins addr addrMode builder acc =
   match addrMode with
   | OffsetMode offset | PreIdxMode offset | PostIdxMode offset ->
-    offsetToString addrMode offset (sb.Append ("["))
+    builder AsmWordKind.String "[" acc
+    |> offsetToString ins addrMode offset builder
   | UnIdxMode (reg, opt) ->
-    ((sb.Append ("[")).Append (regToString reg)).Append ("], {")
-    |> optionToString opt
+    builder AsmWordKind.String "[" acc
+    |> buildReg ins false reg builder
+    |> builder AsmWordKind.String "], {"
+    |> optionToString opt builder
   | LiteralMode lbl ->
-    let sb = sb.Append ("0x")
     let addr = processAddrExn32 ins addr
-    sb.Append (((int32 addr) + (int32 lbl)).ToString ("x"))
-    (* alternative : [PC, imm] *)
-  |> postBracket addrMode
+    let str = "0x" + ((int32 addr) + (int32 lbl)).ToString ("x")
+    builder AsmWordKind.String str acc
+
+let memTail addrMode builder acc =
+  match addrMode with
+  | OffsetMode _ -> builder AsmWordKind.String "]" acc
+  | PreIdxMode _ -> builder AsmWordKind.String "]!" acc
+  | PostIdxMode _ -> acc
+  | UnIdxMode _ -> builder AsmWordKind.String "}" acc
+  | LiteralMode _ -> acc
+
+let memToString ins addr addrMode builder acc =
+  memHead ins addr addrMode builder acc
+  |> memTail addrMode builder
 
 let optToString = function
   | SY -> "sy"
@@ -936,59 +1010,72 @@ let endToString = function
   | Endian.Big -> "be"
   | _ -> invalidArg "Endian" "Invalid endian is given."
 
-let oprToString i addr (sb: StringBuilder) = function
-  | Register reg -> sb.Append (regToString reg)
-  | SpecReg (reg, pFlag) -> specRegToString reg pFlag sb
-  | RegList regList -> sb.Append (regListToString regList)
-  | SIMDOpr simd -> simdOprToString simd sb
-  | Immediate imm -> immToString imm None sb
-  | FPImmediate fp -> fpImmToString fp sb
-  | Shift s -> shiftToString s sb
-  | RegShift (s, r) -> regShiftToString s r sb
-  | Memory addrMode -> memToString i addr addrMode sb
-  | Option opt -> sb.Append (optToString opt)
-  | Iflag flag -> sb.Append (iFlagToString flag)
-  | Endian e -> sb.Append (endToString e)
-  | Cond c -> sb.Append (condToString (Some c))
+let oprToString i addr operand delim builder acc =
+  match operand with
+  | OprReg reg ->
+    prependDelimiter delim builder acc |> buildReg i false reg builder
+  | OprSpecReg (reg, pFlag) ->
+    prependDelimiter delim builder acc |> specRegToString i reg pFlag builder
+  | OprRegList regList ->
+    prependDelimiter delim builder acc |> regListToString i regList builder
+  | OprSIMD simd ->
+    prependDelimiter delim builder acc |> simdOprToString i simd builder
+  | OprImm imm ->
+    prependDelimiter delim builder acc |> immToString imm None builder
+  | OprFPImm fp ->
+    prependDelimiter delim builder acc |> fpImmToString fp builder
+  | OprShift s ->
+    shiftToString s delim builder acc
+  | OprRegShift (s, r) ->
+    prependDelimiter delim builder acc |> regShiftToString i s r builder
+  | OprMemory addrMode ->
+    prependDelimiter delim builder acc |> memToString i addr addrMode builder
+  | OprOption opt ->
+    prependDelimiter delim builder acc
+    |> builder AsmWordKind.String (optToString opt)
+  | OprIflag flag ->
+    prependDelimiter delim builder acc
+    |> builder AsmWordKind.String (iFlagToString flag)
+  | OprEndian e ->
+    prependDelimiter delim builder acc
+    |> builder AsmWordKind.String (endToString e)
+  | OprCond c ->
+    prependDelimiter delim builder acc
+    |> builder AsmWordKind.String (condToString (Some c))
 
-let printOprs ins pc (sb: StringBuilder) =
-  let toStrFn = oprToString ins pc
+let buildOprs ins pc builder acc =
   match ins.Operands with
-  | NoOperand -> sb
-  | OneOperand opr -> toStrFn (sb.Append ("  ")) opr
+  | NoOperand -> acc
+  | OneOperand opr ->
+    oprToString ins pc opr (Some " ") builder acc
   | TwoOperands (opr1, opr2) ->
-    let sb = toStrFn (sb.Append ("  ")) opr1
-    toStrFn (sb.Append (", ")) opr2
+    oprToString ins pc opr1 (Some " ") builder acc
+    |> oprToString ins pc opr2 (Some ", ") builder
   | ThreeOperands (opr1, opr2, opr3) ->
-    let sb = toStrFn (sb.Append ("  ")) opr1
-    let sb = toStrFn (sb.Append (", ")) opr2
-    toStrFn (sb.Append (", ")) opr3
+    oprToString ins pc opr1 (Some " ") builder acc
+    |> oprToString ins pc opr2 (Some ", ") builder
+    |> oprToString ins pc opr3 (Some ", ") builder
   | FourOperands (opr1, opr2, opr3, opr4) ->
-    let sb = toStrFn (sb.Append ("  ")) opr1
-    let sb = toStrFn (sb.Append (", ")) opr2
-    let sb = toStrFn (sb.Append (", ")) opr3
-    toStrFn (sb.Append (", ")) opr4
+    oprToString ins pc opr1 (Some " ") builder acc
+    |> oprToString ins pc opr2 (Some ", ") builder
+    |> oprToString ins pc opr3 (Some ", ") builder
+    |> oprToString ins pc opr4 (Some ", ") builder
   | FiveOperands (opr1, opr2, opr3, opr4, opr5) ->
-    let sb = toStrFn (sb.Append ("  ")) opr1
-    let sb = toStrFn (sb.Append (", ")) opr2
-    let sb = toStrFn (sb.Append (", ")) opr3
-    let sb = toStrFn (sb.Append (", ")) opr4
-    toStrFn (sb.Append (", ")) opr5
+    oprToString ins pc opr1 (Some " ") builder acc
+    |> oprToString ins pc opr2 (Some ", ") builder
+    |> oprToString ins pc opr3 (Some ", ") builder
+    |> oprToString ins pc opr4 (Some ", ") builder
+    |> oprToString ins pc opr5 (Some ", ") builder
   | SixOperands (opr1, opr2, opr3, opr4, opr5, opr6) ->
-    let sb = toStrFn (sb.Append ("  ")) opr1
-    let sb = toStrFn (sb.Append (", ")) opr2
-    let sb = toStrFn (sb.Append (", ")) opr3
-    let sb = toStrFn (sb.Append (", ")) opr4
-    let sb = toStrFn (sb.Append (", ")) opr5
-    toStrFn (sb.Append (", ")) opr6
+    oprToString ins pc opr1 (Some " ") builder acc
+    |> oprToString ins pc opr2 (Some ", ") builder
+    |> oprToString ins pc opr3 (Some ", ") builder
+    |> oprToString ins pc opr4 (Some ", ") builder
+    |> oprToString ins pc opr5 (Some ", ") builder
+    |> oprToString ins pc opr6 (Some ", ") builder
 
-let disasm showAddr ins =
+let disasm showAddr ins builder acc =
   let pc = ins.Address
-  let sb = StringBuilder ()
-  let sb = printAddr pc showAddr sb
-  let sb = printOpcode ins sb
-  let sb = printCond ins sb
-  let sb = printQualifier ins sb
-  let sb = printSIMDDataTypes ins sb
-  let sb = printOprs ins pc sb
-  sb.ToString ()
+  buildAddr pc showAddr builder acc
+  |> buildOpcode ins builder
+  |> buildOprs ins pc builder

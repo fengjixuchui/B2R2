@@ -26,35 +26,27 @@
 
 module B2R2.Visualization.Visualizer
 
-let visualize iGraph =
-  let vGraph = VGraph.ofIGraph iGraph
-#if DEBUG
-  VGraph.pp vGraph
-#endif
-  let backEdgeList = CycleRemoval.removeCycles vGraph
-#if DEBUG
-  VGraph.pp vGraph
-#endif
-  let backEdgeList, dummyMap =
-    LayerAssignment.assignLayers vGraph backEdgeList
-#if DEBUG
-  VGraph.pp vGraph
-#endif
-  let vLayout = CrossMinimization.minimizeCrosses vGraph
-  CoordAssignment.assignCoordinates vGraph vLayout
-  EdgeDrawing.drawEdges vGraph vLayout backEdgeList dummyMap
-  VGraph.toOutputGraph vGraph
-
-let visualizeFile inputFile outputFile =
-  let iGraph = InputGraph.ofFile inputFile
-  let oGraph = visualize iGraph
-  OutputGraph.toFile outputFile oGraph
-
-let visualizeDisasmCFG hdl disasmCFG =
+let getJSONFromGraph iGraph roots =
   try
-    let iGraph = InputGraph.ofDisasmCFG hdl disasmCFG
-    let oGraph = visualize iGraph
-    OutputGraph.toStr oGraph
+    let vGraph, roots = VisGraph.ofCFG iGraph roots
+  #if DEBUG
+    VisDebug.logn "# Original"
+    VisDebug.pp vGraph
+  #endif
+    let backEdgeList = CycleRemoval.removeCycles vGraph roots
+  #if DEBUG
+    VisDebug.logn "# After cycle removal"
+    VisDebug.pp vGraph
+  #endif
+    let backEdgeList, dummyMap =
+      LayerAssignment.assignLayers vGraph backEdgeList
+    let vLayout = CrossMinimization.minimizeCrosses vGraph
+    CoordAssignment.assignCoordinates vGraph vLayout
+    EdgeDrawing.drawEdges vGraph vLayout backEdgeList dummyMap
+    vGraph |> JSONExport.toStr
   with e ->
     eprintfn "%s" <| e.ToString ()
     "{}"
+
+let visualizeFromFile _inFile _outFile =
+  B2R2.Utils.futureFeature ()

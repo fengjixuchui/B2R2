@@ -28,9 +28,6 @@ module internal B2R2.BinFile.FileHelper
 
 open B2R2
 
-/// The start offset for parsing files.
-let [<Literal>] startOffset = 0
-
 let peekUIntOfType (reader: BinReader) bitType o =
   if bitType = WordSize.Bit32 then reader.PeekUInt32 (o) |> uint64
   else reader.PeekUInt64 (o)
@@ -38,3 +35,43 @@ let peekUIntOfType (reader: BinReader) bitType o =
 let readUIntOfType reader bitType o =
   let inline sizeByCls bitType = if bitType = WordSize.Bit32 then 4 else 8
   struct (peekUIntOfType reader bitType o, o + sizeByCls bitType)
+
+let peekHeaderB (reader: BinReader) cls offset d32 d64 =
+  offset + (if cls = WordSize.Bit32 then d32 else d64)
+  |> reader.PeekByte
+
+let peekHeaderU16 (reader: BinReader) cls offset d32 d64 =
+  offset + (if cls = WordSize.Bit32 then d32 else d64)
+  |> reader.PeekUInt16
+
+let peekHeaderI32 (reader: BinReader) cls offset d32 d64 =
+  offset + (if cls = WordSize.Bit32 then d32 else d64)
+  |> reader.PeekInt32
+
+let peekHeaderU32 (reader: BinReader) cls offset d32 d64 =
+  offset + (if cls = WordSize.Bit32 then d32 else d64)
+  |> reader.PeekUInt32
+
+let peekHeaderNative reader cls offset d32 d64 =
+  offset + (if cls = WordSize.Bit32 then d32 else d64)
+  |> peekUIntOfType reader cls
+
+let peekCString (reader: BinReader) offset (size: int) =
+  let bs = reader.PeekBytes (size, offset)
+  ByteArray.extractCString bs 0
+
+let addInvRange set saddr eaddr =
+  if saddr = eaddr then set
+  else IntervalSet.add (AddrRange (saddr, eaddr)) set
+
+let addLastInvRange wordSize (set, saddr) =
+  let laddr =
+    if wordSize = WordSize.Bit32 then 0xFFFFFFFFUL else 0xFFFFFFFFFFFFFFFFUL
+  IntervalSet.add (AddrRange (saddr, laddr)) set
+
+/// Trim the target range based on my range (myrange) in such a way that the
+/// resulting range is always included in myrange.
+let trimByRange myrange target =
+  let l = max (AddrRange.GetMin myrange) (AddrRange.GetMin target)
+  let h = min (AddrRange.GetMax myrange) (AddrRange.GetMax target)
+  AddrRange (l, h)

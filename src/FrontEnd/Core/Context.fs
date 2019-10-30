@@ -36,7 +36,11 @@ type ParsingContext (archMode) =
   member val ArchOperationMode: ArchOperationMode = archMode with get, set
 
   /// ITState for ARM.
-  member val ITState: byte = 0uy with get, set
+  member val ITState: byte list = [] with get, set
+
+  /// Indicate whether an ITblock (in ARM) is started. This is true only when an
+  /// IT hint instruction is encountered.
+  member val ITBlockStarted = false with get, set
 
 /// A high-level interface for the translation context, which stores several
 /// states for translating/lifting instructions.
@@ -44,6 +48,9 @@ type ParsingContext (archMode) =
 type TranslationContext (isa) =
   /// Word size in bits (RegType).
   member val WordBitSize: RegType = WordSize.toRegType isa.WordSize
+
+  /// The endianness.
+  member val Endianness: Endian = isa.Endian
 
   /// <summary>
   ///   Get register expression from a given register ID.

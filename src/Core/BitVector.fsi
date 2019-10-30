@@ -42,6 +42,66 @@ type BitVector =
     override GetHashCode : unit -> int
     override ToString : unit -> string
 
+    /// BitVector addition with uint64.
+    static member (+) : v: BitVector * b: uint64 -> BitVector
+
+    /// BitVector subtraction with uint64.
+    static member (-) : v: BitVector * b: uint64 -> BitVector
+
+    /// BitVector multiplication with uint64.
+    static member (*) : v: BitVector * b: uint64 -> BitVector
+
+    /// BitVector Bitwise And with uint64.
+    static member (&&&) : v: BitVector * b: uint64 -> BitVector
+
+    /// BitVector Bitwise Or with uint64.
+    static member (|||) : v: BitVector * b: uint64 -> BitVector
+
+    /// BitVector Bitwise And with uint64.
+    static member (^^^) : v: BitVector * b: uint64 -> BitVector
+
+    /// BitVector unsigned division with uint64.
+    static member (/) : v: BitVector * b: uint64 -> BitVector
+
+    /// BitVector unsigned modulo with uint64.
+    static member (%) : v: BitVector * b: uint64 -> BitVector
+
+    /// BitVector addition.
+    static member (+) : v1: BitVector * v2: BitVector -> BitVector
+
+    /// BitVector subtraction.
+    static member (-) : v1: BitVector * v2: BitVector -> BitVector
+
+    /// BitVector multiplication.
+    static member (*) : v1: BitVector * v2: BitVector -> BitVector
+
+    /// BitVector Bitwise And.
+    static member (&&&) : v1: BitVector * v2: BitVector -> BitVector
+
+    /// BitVector Bitwise Or.
+    static member (|||) : v1: BitVector * v2: BitVector -> BitVector
+
+    /// BitVector Bitwise Xor.
+    static member (^^^) : v1: BitVector * v2: BitVector -> BitVector
+
+    /// BitVector Bitwise Not.
+    static member (~~~) : v: BitVector -> BitVector
+
+    /// BitVector signed division.
+    static member (/) : v1: BitVector * v2: BitVector -> BitVector
+
+    /// BitVector unsigned division.
+    static member (|/|) : v1: BitVector * v2: BitVector -> BitVector
+
+    /// BitVector signed modulo.
+    static member (%) : v1: BitVector * v2: BitVector -> BitVector
+
+    /// BitVector unsigned modulo.
+    static member (|%|) : v1: BitVector * v2: BitVector -> BitVector
+
+    /// BitVector unary negation.
+    static member (~-): v: BitVector -> BitVector
+
     /// <summary>
     ///   Create a BitVector from an integer.
     /// </summary>
@@ -104,6 +164,14 @@ type BitVector =
     [<CompiledName("One")>]
     static member one : RegType -> BitVector
 
+    /// BitVector one (= 1) of the bit length.
+    [<CompiledName("True")>]
+    static member T : BitVector
+
+    /// BitVector one (= 1) of the bit length.
+    [<CompiledName("False")>]
+    static member F : BitVector
+
     /// Cast a type of a BitVector.
     [<CompiledName("Cast")>]
     static member cast : BitVector -> RegType -> BitVector
@@ -124,11 +192,11 @@ type BitVector =
     [<CompiledName("Mul")>]
     static member mul : BitVector -> BitVector -> BitVector
 
-    /// BitVector Unsigned division.
+    /// BitVector unsigned division.
     [<CompiledName("Div")>]
     static member div : BitVector -> BitVector -> BitVector
 
-    /// BitVector Signed division.
+    /// BitVector signed division.
     [<CompiledName("Sdiv")>]
     static member sdiv : BitVector -> BitVector -> BitVector
 
@@ -228,6 +296,22 @@ type BitVector =
     [<CompiledName("Abs")>]
     static member abs : BitVector -> BitVector
 
+    /// BitVector Minimum Value.
+    [<CompiledName("Min")>]
+    static member min : BitVector -> BitVector -> BitVector
+
+    /// BitVector Maximum Value.
+    [<CompiledName("Max")>]
+    static member max : BitVector -> BitVector -> BitVector
+
+    /// BitVector Signed Minimum Value.
+    [<CompiledName("Smin")>]
+    static member smin : BitVector -> BitVector -> BitVector
+
+    /// BitVector Signed Maximum Value.
+    [<CompiledName("Smax")>]
+    static member smax : BitVector -> BitVector -> BitVector
+
     /// BitVector of maximum 8-bit integer.
     [<CompiledName("MaxNum8")>]
     static member maxNum8 : BitVector
@@ -243,6 +327,34 @@ type BitVector =
     /// BitVector of maximum 64-bit integer.
     [<CompiledName("MaxNum64")>]
     static member maxNum64 : BitVector
+
+    /// BitVector of unsigned maximum integer for given RegType.
+    [<CompiledName("UnsignedMax")>]
+    static member unsignedMax : RegType -> BitVector
+
+    /// BitVector of unsigned minimum integer for given RegType.
+    [<CompiledName("UnsignedMin")>]
+    static member unsignedMin : RegType -> BitVector
+
+    /// BitVector of signed maximum integer for given RegType.
+    [<CompiledName("SignedMax")>]
+    static member signedMax : RegType -> BitVector
+
+    /// BitVector of signed minimum integer for given RegType.
+    [<CompiledName("SignedMin")>]
+    static member signedMin : RegType -> BitVector
+
+    /// Does the bitvector represent a unsigned max value?
+    [<CompiledName("IsUnsignedMax")>]
+    static member isUnsignedMax: BitVector -> bool
+
+    /// Does the bitvector represent a signed max value?
+    [<CompiledName("IsSignedMax")>]
+    static member isSignedMax: BitVector -> bool
+
+    /// Does the bitvector represent a signed min value?
+    [<CompiledName("IsSignedMin")>]
+    static member isSignedMin: BitVector -> bool
 
     /// BitVector to string.
     [<CompiledName("ToString")>]
@@ -260,10 +372,6 @@ type BitVector =
     [<CompiledName("IsNegative")>]
     static member isNegative : BitVector -> bool
 
-    /// Does the bitvector represent a signed min value?
-    [<CompiledName("IsSignedMin")>]
-    static member isSignedMin: BitVector -> bool
-
     /// Does the bitvector represent a value zero (0)?
     [<CompiledName("IsZero")>]
     static member isZero : BitVector -> bool
@@ -271,6 +379,14 @@ type BitVector =
     /// Does the bitvector represent a value one (1)?
     [<CompiledName("IsOne")>]
     static member isOne : BitVector -> bool
+
+    /// Does the bitvector represent false (=0)?
+    [<CompiledName("IsFalse")>]
+    static member isFalse : BitVector -> bool
+
+    /// Does the bitvector represent true (<>0)?
+    [<CompiledName("IsTrue")>]
+    static member isTrue : BitVector -> bool
 
     /// Does the bitvector represent the specified integer number?
     [<CompiledName("IsNum")>]

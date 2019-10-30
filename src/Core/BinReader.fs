@@ -35,8 +35,9 @@ open System.Runtime.InteropServices
 /// little-endian and big-endian BinReader.
 [<AbstractClass>]
 type BinReader (bytes: byte []) =
+  let mutable bytes = bytes
   /// The byte array stored for this reader.
-  member val Bytes = bytes with get
+  member __.Bytes with get () = bytes and set (bs) = bytes <- bs
 
   /// Peek a single byte at the given offset.
   member __.PeekByte (o) = bytes.[o]
@@ -50,8 +51,21 @@ type BinReader (bytes: byte []) =
   /// Peek byte array of size n at the given offset.
   member __.PeekBytes (n, o) = Array.sub bytes o n
 
+  /// Peek byte array of size n at the given offset.
+  member __.PeekBytes (n: uint64, o: uint64) =
+    __.PeekBytes (System.Convert.ToInt32 n, System.Convert.ToInt32 o)
+
   /// Peek a character array of size n at the given offset.
-  member __.PeekChars (n, o) = __.PeekBytes (n, o) |> Array.map char
+  member __.PeekChars (n: int, o: int) = __.PeekBytes (n, o) |> Array.map char
+
+  /// Peek a number (64-bit integer) using the ULEB128 method.
+  member __.PeekULEB128 (o: int) =
+    let rec readLoop n cnt offset  =
+      let b = __.PeekByte (offset)
+      let acc = (uint64 (b &&& 0x7Fuy) <<< (cnt * 7)) ||| n
+      if b &&& 0x80uy <> 0uy then readLoop acc (cnt + 1) (offset + 1)
+      else acc, cnt + 1
+    readLoop 0UL 0 o
 
   /// Peek an int16 value at the given offset.
   abstract member PeekInt16: o: int -> int16
@@ -80,7 +94,7 @@ type BinReader (bytes: byte []) =
 
   /// Read a byte array of size n at the given offset. This function, unlike
   /// PeekBytes, will return the next offset.
-  member __.ReadBytes (n, o) = struct (__.PeekBytes (n, o), o + n)
+  member __.ReadBytes (n: int, o: int) = struct (__.PeekBytes (n, o), o + n)
 
   /// Read a byte at the given offset. This function, unlike PeekByte, will
   /// return the next offset.
@@ -124,7 +138,7 @@ type BinReader (bytes: byte []) =
   /// Is the given offset points to a position out of the range of the file?
   member __.IsOutOfRange (o) = Array.length bytes <= o
 
-  /// Instantiate BinReader  from a given byte array and endianness.
+  /// Instantiate BinReader from a given byte array and endianness.
   static member Init
     (bytes, [<Optional; DefaultParameterValue(Endian.Little)>] endian) =
     match endian with
@@ -132,7 +146,7 @@ type BinReader (bytes: byte []) =
     | Endian.Big -> BinReaderBE (bytes) :> BinReader
     | _ -> invalidArg "BinReader.init" "Invalid endian is given."
 
-  /// Return a new BinReader of the given endianness. This function will returnt
+  /// Return a new BinReader of the given endianness. This function will return
   /// the same reader if the given endianness is the same as the endianness of
   /// the original reader.
   static member RenewReader (reader: BinReader) endian =
@@ -144,42 +158,42 @@ and internal BinReaderLE (bytes: byte []) =
   inherit BinReader (bytes)
 
   override __.PeekInt16 (o) =
-    (int16 bytes.[o + 1] <<< 8) ||| int16 bytes.[o]
+    (int16 base.Bytes.[o + 1] <<< 8) ||| int16 base.Bytes.[o]
 
   override __.PeekUInt16 (o) =
-    (uint16 bytes.[o + 1] <<< 8) ||| uint16 bytes.[o]
+    (uint16 base.Bytes.[o + 1] <<< 8) ||| uint16 base.Bytes.[o]
 
   override __.PeekInt32 (o) =
-    (int32 bytes.[o + 3] <<< 24)
-    ||| (int32 bytes.[o + 2] <<< 16)
-    ||| (int32 bytes.[o + 1] <<< 8)
-    ||| (int32 bytes.[o])
+    (int32 base.Bytes.[o + 3] <<< 24)
+    ||| (int32 base.Bytes.[o + 2] <<< 16)
+    ||| (int32 base.Bytes.[o + 1] <<< 8)
+    ||| (int32 base.Bytes.[o])
 
   override __.PeekUInt32 (o) =
-    (uint32 bytes.[o + 3] <<< 24)
-    ||| (uint32 bytes.[o + 2] <<< 16)
-    ||| (uint32 bytes.[o + 1] <<< 8)
-    ||| (uint32 bytes.[o])
+    (uint32 base.Bytes.[o + 3] <<< 24)
+    ||| (uint32 base.Bytes.[o + 2] <<< 16)
+    ||| (uint32 base.Bytes.[o + 1] <<< 8)
+    ||| (uint32 base.Bytes.[o])
 
   override __.PeekInt64 (o) =
-    (int64 bytes.[o + 7] <<< 56)
-    ||| (int64 bytes.[o + 6] <<< 48)
-    ||| (int64 bytes.[o + 5] <<< 40)
-    ||| (int64 bytes.[o + 4] <<< 32)
-    ||| (int64 bytes.[o + 3] <<< 24)
-    ||| (int64 bytes.[o + 2] <<< 16)
-    ||| (int64 bytes.[o + 1] <<< 8)
-    ||| (int64 bytes.[o])
+    (int64 base.Bytes.[o + 7] <<< 56)
+    ||| (int64 base.Bytes.[o + 6] <<< 48)
+    ||| (int64 base.Bytes.[o + 5] <<< 40)
+    ||| (int64 base.Bytes.[o + 4] <<< 32)
+    ||| (int64 base.Bytes.[o + 3] <<< 24)
+    ||| (int64 base.Bytes.[o + 2] <<< 16)
+    ||| (int64 base.Bytes.[o + 1] <<< 8)
+    ||| (int64 base.Bytes.[o])
 
   override __.PeekUInt64 (o) =
-    (uint64 bytes.[o + 7] <<< 56)
-    ||| (uint64 bytes.[o + 6] <<< 48)
-    ||| (uint64 bytes.[o + 5] <<< 40)
-    ||| (uint64 bytes.[o + 4] <<< 32)
-    ||| (uint64 bytes.[o + 3] <<< 24)
-    ||| (uint64 bytes.[o + 2] <<< 16)
-    ||| (uint64 bytes.[o + 1] <<< 8)
-    ||| (uint64 bytes.[o])
+    (uint64 base.Bytes.[o + 7] <<< 56)
+    ||| (uint64 base.Bytes.[o + 6] <<< 48)
+    ||| (uint64 base.Bytes.[o + 5] <<< 40)
+    ||| (uint64 base.Bytes.[o + 4] <<< 32)
+    ||| (uint64 base.Bytes.[o + 3] <<< 24)
+    ||| (uint64 base.Bytes.[o + 2] <<< 16)
+    ||| (uint64 base.Bytes.[o + 1] <<< 8)
+    ||| (uint64 base.Bytes.[o])
 
   override __.Endianness = Endian.Little
 
@@ -188,42 +202,42 @@ and internal BinReaderBE (bytes: byte []) =
   inherit BinReader (bytes)
 
   override __.PeekInt16 (o) =
-    (int16 bytes.[o] <<< 8) ||| int16 bytes.[o + 1]
+    (int16 base.Bytes.[o] <<< 8) ||| int16 base.Bytes.[o + 1]
 
   override __.PeekUInt16 (o) =
-    (uint16 bytes.[o] <<< 8) ||| uint16 bytes.[o + 1]
+    (uint16 base.Bytes.[o] <<< 8) ||| uint16 base.Bytes.[o + 1]
 
   override __.PeekInt32 (o) =
-    (int32 bytes.[o] <<< 24)
-    ||| (int32 bytes.[o + 1] <<< 16)
-    ||| (int32 bytes.[o + 2] <<< 8)
-    ||| (int32 bytes.[o + 3])
+    (int32 base.Bytes.[o] <<< 24)
+    ||| (int32 base.Bytes.[o + 1] <<< 16)
+    ||| (int32 base.Bytes.[o + 2] <<< 8)
+    ||| (int32 base.Bytes.[o + 3])
 
   override __.PeekUInt32 (o) =
-    (uint32 bytes.[o] <<< 24)
-    ||| (uint32 bytes.[o + 1] <<< 16)
-    ||| (uint32 bytes.[o + 2] <<< 8)
-    ||| (uint32 bytes.[o + 3])
+    (uint32 base.Bytes.[o] <<< 24)
+    ||| (uint32 base.Bytes.[o + 1] <<< 16)
+    ||| (uint32 base.Bytes.[o + 2] <<< 8)
+    ||| (uint32 base.Bytes.[o + 3])
 
   override __.PeekInt64 (o) =
-    (int64 bytes.[o] <<< 56)
-    ||| (int64 bytes.[o + 1] <<< 48)
-    ||| (int64 bytes.[o + 2] <<< 40)
-    ||| (int64 bytes.[o + 3] <<< 32)
-    ||| (int64 bytes.[o + 4] <<< 24)
-    ||| (int64 bytes.[o + 5] <<< 16)
-    ||| (int64 bytes.[o + 6] <<< 8)
-    ||| (int64 bytes.[o + 7])
+    (int64 base.Bytes.[o] <<< 56)
+    ||| (int64 base.Bytes.[o + 1] <<< 48)
+    ||| (int64 base.Bytes.[o + 2] <<< 40)
+    ||| (int64 base.Bytes.[o + 3] <<< 32)
+    ||| (int64 base.Bytes.[o + 4] <<< 24)
+    ||| (int64 base.Bytes.[o + 5] <<< 16)
+    ||| (int64 base.Bytes.[o + 6] <<< 8)
+    ||| (int64 base.Bytes.[o + 7])
 
   override __.PeekUInt64 (o) =
-    (uint64 bytes.[o] <<< 56)
-    ||| (uint64 bytes.[o + 1] <<< 48)
-    ||| (uint64 bytes.[o + 2] <<< 40)
-    ||| (uint64 bytes.[o + 3] <<< 32)
-    ||| (uint64 bytes.[o + 4] <<< 24)
-    ||| (uint64 bytes.[o + 5] <<< 16)
-    ||| (uint64 bytes.[o + 6] <<< 8)
-    ||| (uint64 bytes.[o + 7])
+    (uint64 base.Bytes.[o] <<< 56)
+    ||| (uint64 base.Bytes.[o + 1] <<< 48)
+    ||| (uint64 base.Bytes.[o + 2] <<< 40)
+    ||| (uint64 base.Bytes.[o + 3] <<< 32)
+    ||| (uint64 base.Bytes.[o + 4] <<< 24)
+    ||| (uint64 base.Bytes.[o + 5] <<< 16)
+    ||| (uint64 base.Bytes.[o + 6] <<< 8)
+    ||| (uint64 base.Bytes.[o + 7])
 
   override __.Endianness = Endian.Big
 

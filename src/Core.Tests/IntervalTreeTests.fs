@@ -77,12 +77,21 @@ type TestClass () =
     let set = IntervalSet.add range3 set
     let set = IntervalSet.add range4 set
     let range5 = AddrRange (0x120UL, 0x121UL)
-    let overlap1 = [| range2; range1; range4 |]
+    let overlap1 = [| range4; range1; range2 |]
     let result1 = IntervalSet.findAll range5 set |> List.toArray
     CollectionAssert.AreEqual (overlap1, result1)
     Assert.IsTrue (IntervalSet.contains range1 set)
     Assert.IsFalse (IntervalSet.contains range5 set)
     Assert.AreEqual (Some range2, IntervalSet.tryFindByAddr 0x99UL set)
+
+  [<TestMethod>]
+  member __.``IntervalSet Test Overlaps 2`` () =
+    let range1 = AddrRange (0x100UL, 0x200UL)
+    let range2 = AddrRange (0x300UL, 0x400UL)
+    let set = IntervalSet.add range1 IntervalSet.empty
+    let set = IntervalSet.add range2 set
+    let range = AddrRange (0x250UL, 0x300UL)
+    Assert.AreEqual (0, IntervalSet.findAll range set |> List.length)
 
   [<TestMethod>]
   member __.``IntervalMap Test tryFindByMin`` () =

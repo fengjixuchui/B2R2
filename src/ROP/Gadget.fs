@@ -2,6 +2,7 @@
   B2R2 - the Next-Generation Reversing Platform
 
   Author: HyungSeok Han <hyungseok.han@kaist.ac.kr>
+          Sang Kil Cha <sangkilc@kaist.ac.kr>
 
   Copyright (c) SoftSec Lab. @ KAIST, since 2016
 
@@ -28,51 +29,57 @@ namespace B2R2.ROP
 
 open System
 open B2R2.FrontEnd
-open B2R2.BinIR.LowUIR
 
 /// Tail is a instruction sequence that needs to be placed at the end of each
 /// ROP gadget.
 type Tail = {
-  Pattern : byte []
-  Instrs  : Instruction list
-  IRs     : Stmt []
+  Pattern: byte []
 }
 
 type Offset = uint64
 
 /// ROP gadget is a list of instructions.
 type Gadget = {
-  Instrs : Instruction list
-  IRs    : Stmt []
-  Offset : Offset
-  PreOff : Offset
+  Instrs: Instruction list
+  Offset: Offset
+  NextOff: Offset
 }
 
 /// GadgetMap is a mapping from an offset to an ROP gadget.
 type GadgetMap = Map<Offset, Gadget>
 
 module Gadget =
+  let create offset instrs =
+    { Instrs = instrs
+      Offset = offset
+      NextOff = offset }
+
   let toString hdl (gadget: Gadget) =
-    let s = sprintf "[*] Offset = %x\n" gadget.Offset
+    let sb = Text.StringBuilder ()
+    let sb = sb.Append (sprintf "[*] Offset = %x\n" gadget.Offset)
     gadget.Instrs
-    |> List.fold (fun acc i ->
-                   let disasm = BinHandler.DisasmInstr hdl true false i
-                   acc + disasm + Environment.NewLine) s
+    |> List.fold (fun (sb: Text.StringBuilder) i ->
+         let disasm = BinHandler.DisasmInstr hdl true false i
+         sb.Append(disasm).Append(Environment.NewLine)) sb
+    |> fun sb -> sb.ToString ()
 
 module GadgetMap =
   let empty = Map.empty
 
   let toString hdl (gadgets: GadgetMap) =
-    Map.fold (fun acc _ gadget ->
-               acc + Gadget.toString hdl gadget + "\n") "" gadgets
+    let sb = Text.StringBuilder ()
+    gadgets
+    |> Map.fold (fun (sb: Text.StringBuilder) _ gadget ->
+         sb.Append(Gadget.toString hdl gadget).Append(Environment.NewLine)) sb
+    |> fun sb -> sb.ToString ()
 
 type GadgetArr = Gadget array
 
 module GadgetArr =
   let private pickHelper chooser (falseSet, acc) (gadget: Gadget) =
-    let pre = gadget.PreOff
+    let next = gadget.NextOff
     let cur = gadget.Offset
-    if pre <> cur && (Set.contains pre falseSet) then
+    if next <> cur && (Set.contains next falseSet) then
       (Set.add cur falseSet, acc)
     else
       match chooser gadget with

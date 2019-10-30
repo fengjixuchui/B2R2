@@ -36,98 +36,108 @@ open B2R2.FrontEnd
 open B2R2.FrontEnd.BinHandlerHelper
 
 type BinHandler = {
-  ISA                : ISA
-  FileInfo           : FileInfo
-  BinReader          : BinReader
-  ParsingContext     : ParsingContext
-  TranslationContext : TranslationContext
-  Parser             : Parser
+  ISA: ISA
+  FileInfo: FileInfo
+  ParsingContext: ParsingContext
+  TranslationContext: TranslationContext
+  Parser: Parser
 }
 with
-  static member private Init (isa, mode, format, baseAddr, bytes, path) =
+  static member private Init (isa, mode, autoDetect, baseAddr, bytes, path) =
     let path = try IO.Path.GetFullPath path with _ -> ""
-    let fi = newFileInfo bytes baseAddr path format
-    let mode =
-      if mode = ArchOperationMode.NoMode && isARM isa
-        then detectThumb fi.EntryPoint isa else mode
+    let fi = newFileInfo bytes baseAddr path isa autoDetect
+    let isa = fi.ISA
+    let needCheckThumb = mode = ArchOperationMode.NoMode && isARM isa
+    let mode = if needCheckThumb then detectThumb fi.EntryPoint isa else mode
     let ctxt, parser = initHelpers isa
-    {
-      ISA = isa
+    { ISA = isa
       FileInfo = fi
-      BinReader = BinReader.Init (bytes, isa.Endian)
       ParsingContext = ParsingContext (mode)
       TranslationContext = ctxt
-      Parser = parser
-    }
+      Parser = parser }
 
-  static member Init (isa, archMode, format, baseAddr, bytes) =
-    BinHandler.Init (isa, archMode, format, baseAddr, bytes, "")
+  static member Init (isa, archMode, autoDetect, baseAddr, bytes) =
+    BinHandler.Init (isa, archMode, autoDetect, baseAddr, bytes, "")
 
-  static member Init (isa, archMode, format, baseAddr, fileName) =
+  static member Init (isa, archMode, autoDetect, baseAddr, fileName) =
     let bytes = IO.File.ReadAllBytes fileName
-    BinHandler.Init (isa, archMode, format, baseAddr, bytes, fileName)
+    BinHandler.Init (isa, archMode, autoDetect, baseAddr, bytes, fileName)
 
-  static member Init (isa, archMode, format) =
-    BinHandler.Init (isa, archMode, format, 0UL, [||], "")
-
-  static member Init (isa) = BinHandler.Init (isa, [||])
+  static member Init (isa, fileName) =
+    let bytes = IO.File.ReadAllBytes fileName
+    let defaultMode = ArchOperationMode.NoMode
+    BinHandler.Init (isa, defaultMode, true, 0UL, bytes, fileName)
 
   static member Init (isa, bytes) =
     let defaultMode = ArchOperationMode.NoMode
-    let defaultFmt = FileFormat.RawBinary
-    BinHandler.Init (isa, defaultMode, defaultFmt, 0UL, bytes, "")
+    BinHandler.Init (isa, defaultMode, false, 0UL, bytes, "")
+
+  static member Init (isa, archMode) =
+    BinHandler.Init (isa, archMode, false, 0UL, [||], "")
+
+  static member Init (isa) = BinHandler.Init (isa, [||])
 
   static member UpdateCode h addr bs =
-    { h with
-        FileInfo = newFileInfo bs addr h.FileInfo.FilePath h.FileInfo.FileFormat
-        BinReader = BinReader.Init (bs, h.ISA.Endian) }
+    { h with FileInfo = new RawFileInfo (bs, addr, h.ISA) :> FileInfo }
 
   member __.ReadBytes (addr, nBytes) =
     BinHandler.ReadBytes (__, addr, nBytes)
 
-  static member ReadBytes ({ BinReader = r; FileInfo = fi }, addr, nBytes) =
-    if fi.IsValidAddr (addr + uint64 nBytes - 1UL) then
-      r.PeekBytes (nBytes, fi.TranslateAddress addr)
+  static member ReadBytes ({ FileInfo = fi }, addr, nBytes) =
+    let range = AddrRange (addr, addr + uint64 nBytes)
+    if fi.IsInFileRange range then
+      fi.BinReader.PeekBytes (nBytes, fi.TranslateAddress addr)
+    elif fi.IsValidRange range then
+      fi.GetNotInFileIntervals range
+      |> classifyRanges range
+      |> List.fold (fun bs (range, isInFile) ->
+           let len = range.Max - range.Min |> int
+           if isInFile then
+             let addr = fi.TranslateAddress range.Min
+             fi.BinReader.PeekBytes (len, addr)
+             |> Array.append bs
+           else Array.create len 0uy |> Array.append bs
+         ) [||]
     else invalidArg "ReadBytes" "Invalid address or size is given."
 
   member __.ReadInt (addr, nBytes) =
     BinHandler.ReadInt (__, addr, nBytes)
 
-  static member ReadInt ({ BinReader = reader; FileInfo = fi }, addr, nBytes) =
+  static member ReadInt ({ FileInfo = fi }, addr, nBytes) =
     let pos = fi.TranslateAddress addr
     match nBytes with
-    | 1 -> reader.PeekInt8 pos |> int64
-    | 2 -> reader.PeekInt16 pos |> int64
-    | 4 -> reader.PeekInt32 pos |> int64
-    | 8 -> reader.PeekInt64 pos
+    | 1 -> fi.BinReader.PeekInt8 pos |> int64
+    | 2 -> fi.BinReader.PeekInt16 pos |> int64
+    | 4 -> fi.BinReader.PeekInt32 pos |> int64
+    | 8 -> fi.BinReader.PeekInt64 pos
     | _ -> invalidArg "ReadInt" "Invalid size given."
 
   member __.ReadUInt (addr, nBytes) =
     BinHandler.ReadUInt (__, addr, nBytes)
 
-  static member ReadUInt ({ BinReader = reader; FileInfo = fi }, addr, nBytes) =
+  static member ReadUInt ({ FileInfo = fi }, addr, nBytes) =
     let pos = fi.TranslateAddress addr
     match nBytes with
-    | 1 -> reader.PeekUInt8 pos |> uint64
-    | 2 -> reader.PeekUInt16 pos |> uint64
-    | 4 -> reader.PeekUInt32 pos |> uint64
-    | 8 -> reader.PeekUInt64 pos
+    | 1 -> fi.BinReader.PeekUInt8 pos |> uint64
+    | 2 -> fi.BinReader.PeekUInt16 pos |> uint64
+    | 4 -> fi.BinReader.PeekUInt32 pos |> uint64
+    | 8 -> fi.BinReader.PeekUInt64 pos
     | _ -> invalidArg "ReadUInt" "Invalid size given."
 
   member __.ReadASCII (addr) =
     BinHandler.ReadASCII (__, addr)
 
-  static member ReadASCII ({ BinReader = reader; FileInfo = fi }, addr) =
+  static member ReadASCII ({ FileInfo = fi }, addr) =
     let rec loop acc pos =
-      let b = reader.PeekByte pos
+      let b = fi.BinReader.PeekByte pos
       if b = 0uy then List.rev (b :: acc) |> List.toArray
       else loop (b :: acc) (pos + 1)
     let bs = fi.TranslateAddress addr |> loop []
     ByteArray.extractCString bs 0
 
-  static member ParseInstr (handler: BinHandler) addr =
-    let offset = handler.FileInfo.TranslateAddress addr
-    handler.Parser.Parse handler.BinReader handler.ParsingContext addr offset
+  static member ParseInstr (hdl: BinHandler) addr =
+    hdl.FileInfo.TranslateAddress addr
+    |> hdl.Parser.Parse hdl.FileInfo.BinReader hdl.ParsingContext addr
 
   static member TryParseInstr handler addr =
     try BinHandler.ParseInstr handler addr |> Some

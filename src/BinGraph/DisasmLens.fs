@@ -1,9 +1,6 @@
 (*
   B2R2 - the Next-Generation Reversing Platform
 
-  Author: Soomin Kim <soomink@kaist.ac.kr>
-          Sang Kil Cha <sangkilc@kaist.ac.kr>
-
   Copyright (c) SoftSec Lab. @ KAIST, since 2016
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -29,13 +26,27 @@ namespace B2R2.BinGraph
 
 open B2R2
 open B2R2.FrontEnd
+open B2R2.BinCorpus
+open System
 open System.Collections.Generic
 
 /// Basic block type for a disassembly-based CFG (DisasmCFG).
-type DisasmBBlock (instrs: Instruction [], pp, hdl: BinHandler) =
+type DisasmBBlock (instrs: Instruction [], pp, app: Apparatus) =
   inherit BasicBlock()
 
   let mutable instructions = instrs
+
+  let symbolize (ins: Instruction) (words: AsmWord []) =
+    let last = words.[words.Length - 1]
+    if ins.IsBranch () && last.AsmWordKind = AsmWordKind.Value then
+      let addr = Convert.ToUInt64 (last.AsmWordValue, 16)
+      match app.CalleeMap.Find (addr) with
+      | Some callee ->
+        words.[words.Length - 1] <-
+          { AsmWordKind = AsmWordKind.Value; AsmWordValue = callee.CalleeID }
+      | None -> ()
+      words
+    else words
 
   override __.PPoint = pp
 
@@ -46,7 +57,8 @@ type DisasmBBlock (instrs: Instruction [], pp, hdl: BinHandler) =
   override __.IsFakeBlock () = Array.isEmpty instructions
 
   override __.ToVisualBlock () =
-    instructions |> Array.map (fun i -> i.Decompose ())
+    instructions
+    |> Array.map (fun i -> i.Decompose () |> symbolize i)
 
   member __.Instructions
     with get () = instructions
@@ -63,12 +75,12 @@ type DisasmCFG = ControlFlowGraph<DisasmBBlock, CFGEdgeKind>
 type DisasmVMap = Dictionary<Addr, Vertex<DisasmBBlock>>
 
 /// A graph lens for obtaining DisasmCFG.
-type DisasmLens (hdl) =
+type DisasmLens (app) =
   let getVertex g (vMap: DisasmVMap) (oldVertex: Vertex<IRBasicBlock>) addr =
     match vMap.TryGetValue addr with
     | false, _ ->
       let instrs = oldVertex.VData.GetInstructions ()
-      let blk = DisasmBBlock (instrs, oldVertex.VData.PPoint, hdl)
+      let blk = DisasmBBlock (instrs, oldVertex.VData.PPoint, app)
       let v = (g: DisasmCFG).AddVertex blk
       vMap.Add (addr, v)
       v
@@ -128,4 +140,5 @@ type DisasmLens (hdl) =
       dfs (merge newGraph vMap) (addEdge newGraph vMap) g roots
       newGraph, roots'
 
-  static member Init (hdl) = DisasmLens (hdl) :> ILens<DisasmBBlock>
+  static member Init (app) = DisasmLens (app) :> ILens<DisasmBBlock>
+

@@ -1,8 +1,6 @@
 (*
   B2R2 - the Next-Generation Reversing Platform
 
-  Author: Sang Kil Cha <sangkilc@kaist.ac.kr>
-
   Copyright (c) SoftSec Lab. @ KAIST, since 2016
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -29,7 +27,8 @@ namespace B2R2.Utilities.BinExplorer
 open System
 open System.Text
 open B2R2
-open B2R2.BinGraph
+open B2R2.BinCorpus
+open B2R2.MiddleEnd
 
 type CmdShow () =
   inherit Cmd ()
@@ -55,9 +54,9 @@ type CmdShow () =
   member private __.CalleeToSimpleString prefix (sb: StringBuilder) callee =
     let noret = if callee.IsNoReturn then " [no return]" else ""
     match callee.Addr with
-    | None -> sb.Append (prefix + callee.CalleeName + noret + "\n")
+    | None -> sb.Append (prefix + callee.CalleeID + noret + "\n")
     | Some addr ->
-      sb.Append (prefix + callee.CalleeName
+      sb.Append (prefix + callee.CalleeID
                + noret + " @ " + addr.ToString("X") + "\n")
 
   member private __.CalleeToString (sb: StringBuilder) callee =
@@ -67,7 +66,7 @@ type CmdShow () =
   member __.ShowCaller ess = function
     | (expr: string) :: _ ->
       let addr = CmdUtils.convHexString expr |> Option.defaultValue 0UL
-      match ess.BinaryApparatus.CallerMap.TryGetValue addr with
+      match ess.Apparatus.CallerMap.TryGetValue addr with
       | false, _ -> [| "[*] Not found." |]
       | true, callee ->
         let sb = StringBuilder ()
@@ -80,8 +79,8 @@ type CmdShow () =
     | (expr: string) :: _ ->
       let addr = CmdUtils.convHexString expr |> Option.defaultValue 0UL
       let sb = StringBuilder ()
-      if Char.IsDigit expr.[0] then ess.BinaryApparatus.CalleeMap.Find (addr)
-      else ess.BinaryApparatus.CalleeMap.Find (expr)
+      if Char.IsDigit expr.[0] then ess.Apparatus.CalleeMap.Find (addr)
+      else ess.Apparatus.CalleeMap.Find (expr)
       |> Option.map (fun callee -> (__.CalleeToString sb callee).ToString ())
       |> Option.defaultValue "[*] Not found."
       |> Array.singleton

@@ -1,8 +1,6 @@
 (*
   B2R2 - the Next-Generation Reversing Platform
 
-  Author: Sang Kil Cha <sangkilc@kaist.ac.kr>
-
   Copyright (c) SoftSec Lab. @ KAIST, since 2016
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -50,7 +48,7 @@ type FileViewerOpts () =
     CmdOpts.New ( descr = "Specify <ISA> (e.g., x86) for fat binaries",
                   extra = 1, callback = cb, short = "-a", long= "--isa" )
 
-let spec: FileViewerOpts OptParse.Option list =
+let spec: FileViewerOpts FsOptParse.Option list =
   [ FileViewerOpts.OptISA ()
     CmdOpts.OptVerbose ()
     CmdOpts.OptHelp () ]

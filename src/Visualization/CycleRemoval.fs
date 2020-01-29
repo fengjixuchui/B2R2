@@ -1,8 +1,6 @@
 (*
   B2R2 - the Next-Generation Reversing Platform
 
-  Author: Soomin Kim <soomink@kaist.ac.kr>
-
   Copyright (c) SoftSec Lab. @ KAIST, since 2016
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -25,6 +23,8 @@
 *)
 
 module internal B2R2.Visualization.CycleRemoval
+
+open B2R2.BinGraph
 
 let private removeSelfCycle (vGraph: VisGraph) backEdgeList src dst _ =
   if VisGraph.getID src = VisGraph.getID dst then (* Definition of self cycle *)
@@ -50,8 +50,10 @@ let private removeBackEdge (vGraph: VisGraph) order backEdgeList src dst _ =
   else backEdgeList
 
 let private dfsRemoveCycles vGraph roots backEdgeList =
-  let topoOrder = VisGraph.getTopologicalOrder vGraph roots
-  vGraph.FoldEdge (removeBackEdge vGraph topoOrder) backEdgeList
+  let _, orderMap =
+    Traversal.foldTopologically vGraph roots (fun (cnt, map) v ->
+      cnt + 1, Map.add v cnt map) (0, Map.empty)
+  vGraph.FoldEdge (removeBackEdge vGraph orderMap) backEdgeList
 
 let removeCycles (vGraph: VisGraph) roots =
   let backEdgeList = vGraph.FoldEdge (removeSelfCycle vGraph) []

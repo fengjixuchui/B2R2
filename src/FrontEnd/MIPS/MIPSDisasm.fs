@@ -1,9 +1,6 @@
 (*
   B2R2 - the Next-Generation Reversing Platform
 
-  Author: DongYeop Oh <oh51dy@kaist.ac.kr>
-          Seung Il Jung <sijung@kaist.ac.kr>
-
   Copyright (c) SoftSec Lab. @ KAIST, since 2016
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -242,12 +239,6 @@ let opCodeToString = function
   | Op.XORI -> "xori"
   | _ -> failwith "Unknown opcode encountered."
 
-let inline buildAddr (addr: Addr) wordSize showAddress builder acc =
-  if not showAddress then acc
-  else
-    builder AsmWordKind.Address (Addr.toString wordSize addr) acc
-    |> builder AsmWordKind.String (": ")
-
 let inline appendCond insInfo opcode =
   match insInfo.Condition with
   | None -> opcode
@@ -284,6 +275,8 @@ let oprToString insInfo opr delim builder acc =
   | Address (Relative offset) ->
     builder AsmWordKind.String delim acc
     |> relToString insInfo.Address offset builder
+  // Never gets matched. Only used in intermediate stage mips assembly parser.
+  | GoToLabel _ -> raise InvalidOperandException
 
 let buildOprs insInfo builder acc =
   match insInfo.Operands with
@@ -305,7 +298,7 @@ let buildOprs insInfo builder acc =
 
 let disasm showAddr wordSize insInfo builder acc =
   let pc = insInfo.Address
-  buildAddr pc wordSize showAddr builder acc
+  DisasmBuilder.addr pc wordSize showAddr builder acc
   |> buildOpcode insInfo builder
   |> buildOprs insInfo builder
 

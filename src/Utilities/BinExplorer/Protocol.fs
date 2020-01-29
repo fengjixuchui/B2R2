@@ -1,8 +1,6 @@
 (*
   B2R2 - the Next-Generation Reversing Platform
 
-  Author: Sang Kil Cha <sangkilc@kaist.ac.kr>
-
   Copyright (c) SoftSec Lab. @ KAIST, since 2016
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -32,12 +30,12 @@ open System.IO
 type SendMsg =
   | GetBinEssence
   | LogString of string
-  | UpdateBinEssence of BinGraph.BinEssence
+  | UpdateBinEssence of MiddleEnd.BinEssence
   | Terminate
 
 type ReplyMsg =
   | Ack
-  | ReplyBinEssence of BinGraph.BinEssence
+  | ReplyBinEssence of MiddleEnd.BinEssence
   | ReplyExitStatus of bool (* Either success (true) or failure (false) *)
 
 type Msg =

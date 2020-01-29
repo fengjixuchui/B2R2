@@ -1,9 +1,6 @@
 (*
   B2R2 - the Next-Generation Reversing Platform
 
-  Author: Seung Il Jung <sijung@kaist.ac.kr>
-          DongYeop Oh <oh51dy@kaist.ac.kr>
-
   Copyright (c) SoftSec Lab. @ KAIST, since 2016
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -181,10 +178,10 @@ module Intel =
     /// 5.2.3 x87 FPU Comparison Instructions
     [<TestMethod>]
     member __.``Intel FPU Comparision Parse Test`` () =
-      test32 Opcode.FCOMIP (TwoOperands (OprReg R.ST1, OprReg R.ST0)) 2ul
+      test32 Opcode.FCOMIP (TwoOperands (OprReg R.ST0, OprReg R.ST1)) 2ul
              [| 0xdfuy; 0xf1uy |]
 
-      test32 Opcode.FUCOMIP (TwoOperands (OprReg R.ST1, OprReg R.ST0)) 2ul
+      test32 Opcode.FUCOMIP (TwoOperands (OprReg R.ST0, OprReg R.ST1)) 2ul
              [| 0xdfuy; 0xe9uy |]
 
   /// 5.4 MMX INSTRUCTIONS
@@ -1440,7 +1437,7 @@ module Intel =
   [<TestClass>]
   type ExceptionTestClass () =
     [<TestMethod>]
-    [<ExpectedException(typedefof<Intel.Helper.ParsingFailureException>)>]
+    [<ExpectedException(typedefof<ParsingFailureException>)>]
     member __.``Size cond ParsingFailure Test`` () =
       test64 Opcode.AAA NoOperand 1ul [| 0x37uy |]
 
@@ -6527,5 +6524,24 @@ module MIPS32 =
       test32R2 Op.BC1F None None
                (OneOperand (Address (Relative 108L)))
                [| 0x45uy; 0x00uy; 0x00uy; 0x1auy |]
+
+module EVM =
+  open B2R2.FrontEnd.EVM
+
+  let private test opcode bytes =
+    let reader = BinReader.Init (bytes, Endian.Little)
+    let ctxt = new ParsingContext (ArchOperationMode.NoMode)
+    let ins = Parser.parse reader ctxt WordSize.Bit64 0UL 0
+    let opcode' = ins.Info.Opcode
+    Assert.AreEqual (opcode', opcode)
+
+  /// 60s & 70s: Push Operations
+  [<TestClass>]
+  type PUSHClass () =
+    [<TestMethod>]
+    member __.``[EVM] Push Parse Test`` () =
+      test (Opcode.PUSH10 <| (BitVector.ofUBInt 316059037807746189465I 80<rt>))
+           [| 0x69uy; 0x00uy; 0x11uy; 0x22uy; 0x33uy; 0x44uy; 0x55uy; 0x66uy;
+              0x77uy; 0x88uy; 0x99uy |]
 
 // vim: set tw=80 sts=2 sw=2:

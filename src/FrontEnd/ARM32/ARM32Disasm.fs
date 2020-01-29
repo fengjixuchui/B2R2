@@ -1,9 +1,6 @@
 (*
   B2R2 - the Next-Generation Reversing Platform
 
-  Author: Seung Il Jung <sijung@kaist.ac.kr>
-          Sang Kil Cha <sangkilc@kaist.ac.kr>
-
   Copyright (c) SoftSec Lab. @ KAIST, since 2016
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -30,12 +27,6 @@ module internal B2R2.FrontEnd.ARM32.Disasm
 open B2R2
 open B2R2.FrontEnd
 open System.Text
-
-let inline buildAddr (addr: Addr) verbose builder acc =
-  if not verbose then acc
-  else
-    builder AsmWordKind.Address (addr.ToString ("X8")) acc
-    |> builder AsmWordKind.String (": ")
 
 let opCodeToString = function
   | Op.MOV -> "mov"
@@ -1042,6 +1033,7 @@ let oprToString i addr operand delim builder acc =
   | OprCond c ->
     prependDelimiter delim builder acc
     |> builder AsmWordKind.String (condToString (Some c))
+  | GoToLabel _ -> acc
 
 let buildOprs ins pc builder acc =
   match ins.Operands with
@@ -1076,6 +1068,6 @@ let buildOprs ins pc builder acc =
 
 let disasm showAddr ins builder acc =
   let pc = ins.Address
-  buildAddr pc showAddr builder acc
+  DisasmBuilder.addr pc WordSize.Bit32 showAddr builder acc
   |> buildOpcode ins builder
   |> buildOprs ins pc builder

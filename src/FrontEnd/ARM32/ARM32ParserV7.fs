@@ -1,9 +1,6 @@
 (*
   B2R2 - the Next-Generation Reversing Platform
 
-  Author: DongYeop Oh <oh51dy@kaist.ac.kr>
-          Seung Il Jung <sijung@kaist.ac.kr>
-
   Copyright (c) SoftSec Lab. @ KAIST, since 2016
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -1379,10 +1376,8 @@ let parseOtherVFP bin =
     Op.VCMPE, None, getOneDtAF bin, p2Oprs bin dummyChk (getRegAL, getImm0)
   | 0b011111u ->
     Op.VCVT, None, getTwoDtD bin, p2Oprs bin dummyChk (getRegAL, getRegAN)
-  | 0b100001u ->
+  | op when op &&& 0b111101u = 0b100001u ->
     Op.VCVT, None, getTwoDtF bin, p2Oprs bin dummyChk (getRegAP, getRegAQ)
-  | 0b100011u ->
-    Op.VCVTR, None, getTwoDtG bin, p2Oprs bin dummyChk (getRegAR, getRegAS)
   | op when op &&& 0b111001u = 0b101001u ->
     Op.VCVT, None, getTwoDtH bin,
     p3Oprs bin dummyChk (getRegAT, getRegAT, getImmI)

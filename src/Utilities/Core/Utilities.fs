@@ -1,8 +1,6 @@
 (*
   B2R2 - the Next-Generation Reversing Platform
 
-  Author: Sang Kil Cha <sangkilc@kaist.ac.kr>
-
   Copyright (c) SoftSec Lab. @ KAIST, since 2016
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -27,8 +25,8 @@
 namespace B2R2.Utilities
 
 open B2R2
+open B2R2.FsOptParse
 open System
-open OptParse
 
 /// A common set of command-line options used in analyzing binaries.
 type CmdOpts () =
@@ -38,10 +36,12 @@ type CmdOpts () =
   /// Just a wrapper function that instantiate an OptParse.Option object.
   static member New<'a> ( descr, ?callback, ?required, ?extra, ?help,
                                  ?short, ?long, ?dummy, ?descrColor ) =
-    new OptParse.Option<'a> ( descr, ?callback=callback, ?required=required,
-                                     ?extra=extra, ?help=help,
-                                     ?short=short, ?long=long,
-                                     ?dummy=dummy, ?descrColor=descrColor )
+    new FsOptParse.Option<'a> ( descr,
+                                ?callback=callback,
+                                ?required=required,
+                                ?extra=extra, ?help=help,
+                                ?short=short, ?long=long,
+                                ?dummy=dummy, ?descrColor=descrColor )
 
   /// "-v" or "--verbose" option turns on the verbose mode.
   static member OptVerbose () =

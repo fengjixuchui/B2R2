@@ -1,8 +1,6 @@
 (*
   B2R2 - the Next-Generation Reversing Platform
 
-  Author: Sang Kil Cha <sangkilc@kaist.ac.kr>
-
   Copyright (c) SoftSec Lab. @ KAIST, since 2016
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -30,6 +28,7 @@ open System
 open System.Text.RegularExpressions
 open B2R2
 open B2R2.FrontEnd
+open B2R2.MiddleEnd
 
 type PrintFormat =
   | Hexadecimal
@@ -145,7 +144,7 @@ type CmdPrint () =
         let len = String.length s |> uint64
         printStrings handler (addr + len + 1UL) (cnt - 1) ((addrstr + s) :: acc)
 
-  let validateRequest (binEssence: BinGraph.BinEssence) = function
+  let validateRequest (binEssence: BinEssence) = function
     | Ok (_, count, ASCII, addr) ->
       let handler = binEssence.BinHandler
       printStrings handler addr count []

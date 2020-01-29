@@ -1,8 +1,6 @@
 (*
   B2R2 - the Next-Generation Reversing Platform
 
-  Author: Sang Kil Cha <sangkilc@kaist.ac.kr>
-
   Copyright (c) SoftSec Lab. @ KAIST, since 2016
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -31,7 +29,10 @@ open System.Net
 open System.Runtime.Serialization
 open System.Runtime.Serialization.Json
 open B2R2
+open B2R2.FrontEnd
+open B2R2.BinCorpus
 open B2R2.BinGraph
+open B2R2.MiddleEnd
 open B2R2.Visualization
 
 type CFGType =
@@ -41,18 +42,20 @@ type CFGType =
   | CallCFG
 
 [<DataContract>]
-  type JsonDefs = {
-    [<field: DataMember(Name = "name")>]
-    Name: string
-    [<field: DataMember(Name = "addr")>]
-    Addr: string
-    [<field: DataMember(Name = "idx")>]
-    Idx: string
-    [<field: DataMember(Name = "comment")>]
-    Comment: string
-    [<field: DataMember(Name = "command")>]
-    Command: string
-  }
+type JsonFuncInfo = {
+  [<field: DataMember(Name = "id")>]
+  FuncID: string
+  [<field: DataMember(Name = "name")>]
+  FuncName: string
+}
+
+[<DataContract>]
+type JsonSegInfo = {
+  [<field: DataMember(Name = "addr")>]
+  SegAddr: Addr
+  [<field: DataMember(Name = "bytes")>]
+  SegBytes: byte []
+}
 
 let rootDir =
   let asm = Reflection.Assembly.GetExecutingAssembly ()
@@ -87,9 +90,14 @@ let readIfExists path =
   if IO.File.Exists path then Some (IO.File.ReadAllBytes (path))
   else None
 
-let getContentType path =
+let getContentType (path: string) =
   match IO.Path.GetExtension path with
   | ".css" -> "text/css"
+  | ".js" -> "text/javascript"
+  | ".png" -> "image/png"
+  | ".jpg" -> "image/jpeg"
+  | ".ico" -> "image/x-icon"
+  | ".woff2" -> "font/woff2"
   | _ -> "text/html"
 
 let answer (req: HttpListenerRequest) (resp: HttpListenerResponse) = function
@@ -113,12 +121,12 @@ let cfgToJSON cfgType ess g roots =
   | IRCFG ->
     Visualizer.getJSONFromGraph g roots
   | DisasmCFG ->
-    let lens = DisasmLens.Init (ess.BinHandler)
-    let g, roots = lens.Filter g roots ess.BinaryApparatus
+    let lens = DisasmLens.Init ess.Apparatus
+    let g, roots = lens.Filter g roots ess.Apparatus
     Visualizer.getJSONFromGraph g roots
   | SSACFG ->
     let lens = SSALens.Init ess.BinHandler ess.SCFG
-    let g, roots = lens.Filter g roots ess.BinaryApparatus
+    let g, roots = lens.Filter g roots ess.Apparatus
     Visualizer.getJSONFromGraph g roots
   | _ -> failwith "Invalid CFG type"
 
@@ -144,7 +152,7 @@ let handleCFG req resp arbiter cfgType name =
     try
       let lens = CallGraphLens.Init ess.SCFG
       let cfg = ess.SCFG.Graph
-      let g, roots = lens.Filter cfg [] ess.BinaryApparatus
+      let g, roots = lens.Filter cfg [] ess.Apparatus
       let s = Visualizer.getJSONFromGraph g roots
       Some (defaultEnc.GetBytes s) |> answer req resp
     with e ->
@@ -158,91 +166,55 @@ let handleCFG req resp arbiter cfgType name =
 let handleFunctions req resp arbiter =
   let ess = Protocol.getBinEssence arbiter
   let names =
-    BinaryApparatus.getInternalFunctions ess.BinaryApparatus
-    |> Seq.map (fun c -> c.CalleeName)
+    Apparatus.getInternalFunctions ess.Apparatus
+    |> Seq.map (fun c -> { FuncID = c.CalleeID; FuncName = c.CalleeName })
     |> Seq.toArray
-  Some (json<string []> names |> defaultEnc.GetBytes)
+  Some (json<(JsonFuncInfo) []> names |> defaultEnc.GetBytes)
   |> answer req resp
 
-// let getComment hdl addr idx comment (func: Function) = function
-//   | DisasmCFG -> Visualizer.setCommentDisasmCFG hdl addr idx comment func.DisasmCFG
-//   | IRCFG -> Visualizer.setCommentIRCFG hdl addr idx comment func.IRCFG
-
-// let handleComment req resp arbiter cfgType (args: string) =
-//   let commentReq = (jsonParser<JsonDefs> args)
-//   let name = commentReq.name
-//   let ess = Protocol.getBinEssence arbiter
-//   match BinEssence.TryFindFuncByName name ess with
-//   | None -> None |> answer req resp
-//   | Some func ->
-//     let hdl = ess.BinHandler
-//     let addr = commentReq.addr
-//     let comment = commentReq.comment
-//     let idx = commentReq.idx |> int
-//     let status = getComment hdl addr idx comment func cfgType
-//     Some (json<string> status  |> defaultEnc.GetBytes) |> answer req resp
-
-// let handleAddress req resp arbiter (args: string) =
-//   let jsonData = (jsonParser<JsonDefs> args)
-//   let entry: Addr =  Convert.ToUInt64(jsonData.addr, 16) |> uint64
-//   let ess = Protocol.getBinEssence arbiter
-//   let addrs =
-//     Array.ofSeq ess.Functions.Values
-//     |> Array.map (fun (func: Function) -> func.Entry|> uint64)
-//     |> Array.sort
-//   let searchedAddr = Array.fold (fun acc x -> if entry >= x then x else acc) 0UL addrs
-//   match BinEssence.TryFindFuncByEntry searchedAddr ess with
-//   | None -> Some (json<string> "" |> defaultEnc.GetBytes) |> answer req resp
-//   | Some func ->
-//     let hdl = ess.BinHandler
-//     let cfg = Visualizer.visualizeDisasmCFG hdl func.DisasmCFG
-//     let namedcfg = cfg.[..cfg.Length-2] + ",\"Name\": \""+ func.Name + "\"}"
-//     Some (defaultEnc.GetBytes namedcfg) |> answer req resp
-
-let handleStr cmds arbiter (line: string) =
-  match line.Split (' ') |> Array.toList with
-  | cmd :: args ->
-    let ess = Protocol.getBinEssence arbiter
-    Cmd.handle cmds ess cmd args
-      |> Array.fold (fun acc x -> acc + x.ToString()+"\n") ""
-  | [] -> ""
+let handleHexview req resp arbiter =
+  let ess = Protocol.getBinEssence arbiter
+  ess.BinHandler.FileInfo.GetSegments ()
+  |> Seq.map (fun seg ->
+    let bs = BinHandler.ReadBytes (ess.BinHandler, seg.Address, int (seg.Size))
+    { SegAddr = seg.Address; SegBytes = bs })
+  |> json<seq<JsonSegInfo>>
+  |> defaultEnc.GetBytes
+  |> Some
+  |> answer req resp
 
 let jsonPrinter _ acc line = acc + line + "\n"
 
-let handleCommand req resp arbiter (args: string) =
-  let jsonData = (jsonParser<JsonDefs> args)
-  let cmd = jsonData.Command
-  let cmds = CmdSpec.speclist |> CmdMap.build
-  let result = CLI.handle cmds arbiter cmd "" jsonPrinter
+let handleCommand req resp arbiter cmdMap (args: string) =
+  let result = CLI.handle cmdMap arbiter args "" jsonPrinter
   Some (json<string> result  |> defaultEnc.GetBytes) |> answer req resp
 
-let handleAJAX req resp arbiter query args =
+let handleAJAX req resp arbiter cmdMap query args =
   match query with
-  | "bininfo" -> handleBinInfo req resp arbiter
-  | "cfg-Disasm" -> handleCFG req resp arbiter DisasmCFG args
-  | "cfg-LowUIR" -> handleCFG req resp arbiter IRCFG args
-  | "cfg-SSA" -> handleCFG req resp arbiter SSACFG args
-  | "cfg-CG" -> handleCFG req resp arbiter CallCFG args
-  | "functions" -> handleFunctions req resp arbiter
-  | "disasm-comment" -> answer req resp None // handleComment req resp arbiter DisasmCFG args
-  | "ir-comment" -> answer req resp None // handleComment req resp arbiter IRCFG args
-  | "address" -> answer req resp None // handleAddress req resp arbiter args
-  | "command" -> handleCommand req resp arbiter args
+  | "BinInfo" -> handleBinInfo req resp arbiter
+  | "Disasm" -> handleCFG req resp arbiter DisasmCFG args
+  | "LowUIR" -> handleCFG req resp arbiter IRCFG args
+  | "SSA" -> handleCFG req resp arbiter SSACFG args
+  | "CG" -> handleCFG req resp arbiter CallCFG args
+  | "Functions" -> handleFunctions req resp arbiter
+  | "Hexview" -> handleHexview req resp arbiter
+  | "Command" -> handleCommand req resp arbiter cmdMap args
   | _ -> answer req resp None
 
-let handle (req: HttpListenerRequest) (resp: HttpListenerResponse) arbiter =
+let handle (req: HttpListenerRequest) (resp: HttpListenerResponse) arbiter m =
   match req.Url.LocalPath.Remove (0, 1) with (* Remove the first '/' *)
   | "ajax/" ->
-    handleAJAX req resp arbiter req.QueryString.["q"] req.QueryString.["args"]
+    handleAJAX req resp arbiter m req.QueryString.["q"] req.QueryString.["args"]
   | "" ->
     IO.Path.Combine (rootDir, "index.html") |> readIfExists |> answer req resp
   | path ->
     IO.Path.Combine (rootDir, path) |> readIfExists |> answer req resp
 
-let startServer arbiter port verbose =
-  let host = "http://localhost:" + port.ToString () + "/"
+let startServer arbiter ip port verbose =
+  let host = "http://" + ip + ":" + port.ToString () + "/"
+  let cmdMap = CmdSpec.speclist |> CmdMap.build
   let handler (req: HttpListenerRequest) (resp: HttpListenerResponse) =
-    try handle req resp arbiter
+    try handle req resp arbiter cmdMap
     with e -> if verbose then eprintfn "%A" e else ()
   listener host handler
 

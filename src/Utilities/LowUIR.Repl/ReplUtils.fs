@@ -1,8 +1,5 @@
-﻿(*
+(*
   B2R2 - the Next-Generation Reversing Platform
-
-  Author: Michael Tegegn <mick@kaist.ac.kr>
-          Sang Kil Cha <sangkilc@kaist.ac.kr>
 
   Copyright (c) SoftSec Lab. @ KAIST, since 2016
 
@@ -32,7 +29,6 @@ open B2R2
 open B2R2.BinIR
 open B2R2.BinIR.LowUIR
 open B2R2.ConcEval
-open B2R2.FrontEnd
 
 /// Supported repl commands. Other commands may be added here.
 type ReplCommand =
@@ -126,28 +122,15 @@ let numToArchitecture n =
   if Map.containsKey n isaMap then ISA.OfString isaMap.[n] |> Some else None
 
 /// Initiates the registers in the architecture with value of zero.
-let initStateForReplStart (pHelper: RegParseHelper) =
+let initStateForReplStart (regfactory: RegisterFactory) =
   let st = EvalState (ignoreundef=true)
   EvalState.PrepareContext st 0 0UL
-    (pHelper.InitStateRegs |> List.map (fun (x, y) -> (x, Def y)))
-
-/// Gets a register name and EvalValue string representation.
-let getRegValueString (rid: RegisterID, value: EvalValue) =
-  let reg = Intel.Register.ofRegID rid
-  let valueStr =
-    match value with
-    | Def bv -> BitVector.valToString bv
-    | Undef -> "undef"
-  sprintf "%s: %s" (reg.ToString ()) valueStr
+    (regfactory.InitStateRegs |> List.map (fun (x, y) -> (x, Def y)))
 
 /// Gets a temporary register name and EvalValue string representation.
 let getTempRegrString (n: int, value: EvalValue) =
   let tRegName = "T_" + string (n)
-  let valueStr =
-    match value with
-    | Def bv -> BitVector.valToString bv
-    | Undef -> "undef"
-  sprintf "%s: %s" tRegName valueStr
+  sprintf "%s: %s" tRegName (getEvalValueString value)
 
 module ReplDisplay =
 
@@ -167,12 +150,12 @@ module ReplDisplay =
   let cprintf c fmt =
     Printf.kprintf
         (fun s ->
-            let old = System.Console.ForegroundColor
+            let old = Console.ForegroundColor
             try
-              System.Console.ForegroundColor <- c;
-              System.Console.Write s
+              Console.ForegroundColor <- c;
+              Console.Write s
             finally
-              System.Console.ForegroundColor <- old)
+              Console.ForegroundColor <- old)
         fmt
 
   let printRed str = cprintf ConsoleColor.Red str
@@ -185,13 +168,13 @@ module ReplDisplay =
     |> (fun (name, value) -> sprintf "%3s: %s" name (getEvalValueString value))
 
   /// Prints all the registers and their statuses to the console.
-  let printRegStatusString state (pHelper: RegParseHelper) (status:Status) =
+  let printRegStatusString state (regfactory: RegisterFactory) (status:Status) =
     let changedIds = status.GetUpdatedRegIndices state
-    let idList = List.map pHelper.IdOf pHelper.MainRegs
+    let idList = List.map regfactory.IdOf regfactory.MainRegs
     List.map
       (fun s ->
         singleRegStatusString s state |> sprintf "%-34s")
-      pHelper.MainRegs |>
+      regfactory.MainRegs |>
     List.iteri (fun i str ->
       if i%3 = 2 && List.contains (idList.[i]) changedIds then
         printRed "%s\n" str
@@ -209,14 +192,13 @@ module ReplDisplay =
           printRed " %s " (getTempRegrString rTuple)
         elif List.contains (fst rTuple) changedTempRegs then
           printRed " %s " (getTempRegrString rTuple)
-        else printf " %s " (getTempRegrString rTuple)
-       ) tRegSeq
+        else printf " %s " (getTempRegrString rTuple)) tRegSeq
     printfn ""
 
   /// Used to print all available registers to the console.
-  let printRegisters (state: EvalState) pHelper status =
+  let printRegisters (state: EvalState) regfactory status =
     printCyan "Main registers: \n" ;
-    printRegStatusString state pHelper status
+    printRegStatusString state regfactory status
     printCyan "\nTemporary Registers:" ;
     printTRegStatusString state status
 

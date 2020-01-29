@@ -1,8 +1,5 @@
-﻿(*
+(*
   B2R2 - the Next-Generation Reversing Platform
-
-  Author: DongYeop Oh <oh51dy@kaist.ac.kr>
-          Seung Il Jung <sijung@kaist.ac.kr>
 
   Copyright (c) SoftSec Lab. @ KAIST, since 2016
 
@@ -64,6 +61,7 @@ let transOprToExpr insInfo ctxt = function
   | Address (Relative o) ->
     numI64 (int64 insInfo.Address + o + int64 insInfo.NumBytes) ctxt.WordBitSize
     |> loadLE ctxt.WordBitSize
+  | GoToLabel _ -> raise InvalidOperandException
 
 let transOprToImm = function
   | Immediate imm

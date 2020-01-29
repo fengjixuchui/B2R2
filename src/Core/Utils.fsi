@@ -1,8 +1,6 @@
 (*
   B2R2 - the Next-Generation Reversing Platform
 
-  Author: Sang Kil Cha <sangkilc@kaist.ac.kr>
-
   Copyright (c) SoftSec Lab. @ KAIST, since 2016
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -35,6 +33,9 @@ val assertByCond: condition: bool -> exn -> unit
 
 /// Not implemented features encountered, so raise an exception and die.
 val futureFeature: unit -> 'a
+
+/// Fatal error. This should never happen.
+val impossible: unit -> 'a
 
 /// Apply a procedure in the middle of function pipes.
 val inline tap : ('a -> unit) -> 'a -> 'a

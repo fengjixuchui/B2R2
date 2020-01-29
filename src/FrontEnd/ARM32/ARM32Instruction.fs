@@ -1,9 +1,6 @@
 (*
   B2R2 - the Next-Generation Reversing Platform
 
-  Author: Seung Il Jung <sijung@kaist.ac.kr>
-          Sang Kil Cha <sangkilc@kaist.ac.kr>
-
   Copyright (c) SoftSec Lab. @ KAIST, since 2016
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -34,7 +31,7 @@ open System.Text
 /// The internal representation for an ARM32 instruction used by our
 /// disassembler and lifter.
 type ARM32Instruction (addr, numBytes, insInfo) =
-  inherit FrontEnd.Instruction (addr, numBytes, WordSize.Bit32)
+  inherit Instruction (addr, numBytes, WordSize.Bit32)
 
   member val Info: InsInfo = insInfo
 

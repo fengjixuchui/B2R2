@@ -1,8 +1,5 @@
-﻿(*
+(*
   B2R2 - the Next-Generation Reversing Platform
-
-  Author: Mehdi Aghakishiyev <agakisiyev.mehdi@gmail.com>
-          Sang Kil Cha <sangkilc@kaist.ac.kr>
 
   Copyright (c) SoftSec Lab. @ KAIST, since 2016
 
@@ -30,197 +27,228 @@ namespace B2R2.Utilities.BinExplorer
 open B2R2.Utilities.BinExplorer
 open FParsec
 open SimpleArithHelper
-open SimpleArithReference
 open SimpleArithOperate
-open Numbers
 
 module SimpleArithParser =
-  let numberformat =
-    NumberLiteralOptions.AllowFraction |||
-    NumberLiteralOptions.AllowFractionWOIntegerPart |||
-    NumberLiteralOptions.AllowBinary |||
-    NumberLiteralOptions.AllowHexadecimal |||
-    NumberLiteralOptions.AllowMinusSign |||
-    NumberLiteralOptions.AllowOctal |||
-    NumberLiteralOptions.AllowSuffix
+  /// Returns a tuple of the big int value of the string and the number of bits
+  /// required to represent the number.
+  let calculateValue (str : string) =
+    let rep = if (str.Length >= 2) then (str.[0 .. 1]) else ""
+    if rep = "0x" || rep = "0X" || rep = "0o" || rep = "0O" ||
+      rep = "0b" || rep = "oB" then
+      stringToBigint str
+    else
+      (System.Numerics.BigInteger.Parse str, -1)
 
-  let pV =
-    numberLiteral numberformat "number" .>>. getPosition .>> spaces
-    |>> fun (nl, pos) ->
-          if nl.HasFraction then (Float BF64, F64 (float nl.String))
-          else
+  type Parser<'a> = Parser<'a,unit>
 
-            let value, flag = calculateValue nl.String
-            let ch1 = nl.SuffixChar1
-            let ch2 = string (nl.SuffixChar1) + string (nl.SuffixChar2)
-            let ch3 = ch2 + string (nl.SuffixChar3)
-            if nl.SuffixLength = 1 && (ch1 = 'u' || ch1 = 'U') then
-              if value >= 0I && value <= ref "uint32Max" then
-                (Unsigned B32, UI32 (uint32 value))
-              else
-                (CError OutofRange, NError ("Out of range", pos.Column))
-            elif nl.SuffixLength = 1 && (ch1 = 'I' || ch1 = 'L') then
-              if value >= ref "int64Min" && value <= ref "int64Max" &&
-                flag <= 4 then
-                (Signed B64, I64 (int64 value))
-              else
-                (CError OutofRange, NError ("Out of range", pos.Column))
-            elif nl.SuffixLength = 2 && (ch2 = "uI" || ch2 = "UL") then
-              if value >= 0I && value <= ref "uint64Max"  then
-                (Unsigned B64, UI64 (uint64 value))
-              else
-                (CError OutofRange, NError ("Out of range", pos.Column))
-            elif nl.SuffixLength = 2 && (ch2 = "II" || ch2 = "LL") then
-              if value >= ref "int128Min" && value <= ref "int128Max" && flag <= 5
-                then
-                (Signed B128, I128 (value))
-              else
-                (CError OutofRange, NError ("Out of range", pos.Column))
-            elif nl.SuffixLength = 3 && (ch3 = "uII" || ch3 = "ULL") then
-              if value >= 0I && value <= ref "uint128Max" then
-                (Unsigned B128, UI128 (value))
-              else
-                (CError OutofRange, NError ("Out of range", pos.Column))
-            elif flag = 3 then
-              (Signed B32, I32 (int value))
-            elif flag = 4 then
-              (Signed B64, I64 (int64 value))
-            elif flag = 5 then
-              (Signed B128, I128 (value))
-            elif flag = 6 then
-              (Signed B256, I256 (value))
-            elif value >= ref "int32Min" && value <= ref "int32Max" then
-              (Signed B32, I32 (int value))
-            elif value >= ref "int64Min" && value <= ref "int64Max" then
-              (Signed B64, I64 (int64 value))
-            elif value >= ref "int128Min" && value <= ref "int128Max" then
-              (Signed B128, I128 (value))
-            elif value >= ref "int256Min" && value <= ref "int256Max" then
-              (Signed B256, I256 (value))
-            elif value > ref "int256Max" && value <= ref "uint256Max" then
-              (Unsigned B256, UI256 (value))
-            else
-              (CError OutofRange, NError ("Out of range", pos.Column))
+  let dummyValue = { IntValue = 0I; Type = CError Default ; FloatValue = 0.0 }
 
-  let ws = spaces
-  let str_ws s = pstring s >>. ws
+  let charListToString charList =
+    Seq.fold (fun str char -> str + string char) "" charList
+
+  let pHexString =
+    pstringCI "0x" .>>. many (anyOf "0123456789ABCDEFabcdef")
+    |>> (fun (prefix, bits) -> prefix + charListToString bits)
+
+  let pOctalString =
+    pstringCI "0o" .>>. many (anyOf "01234567")
+    |>> (fun (prefix, bits) -> prefix + charListToString bits)
+
+  let pBinaryString =
+    pstringCI "0b" .>>. many (anyOf "01")
+    |>> (fun (prefix, bits) -> prefix + charListToString bits)
+
+  let pBinOrHexInteger: Parser<Number> =
+    attempt pBinaryString <|> attempt pHexString <|> attempt pOctalString
+    |>> (fun str ->
+           let value, numSize = calculateValue str
+           Number.createInt (NumType.fromInt numSize) value
+        )
+
+  let pUnsignedBigInteger =
+    many1 digit |>> charListToString |>> bigint.Parse
+
+  let pInteger =
+     opt (pchar '-') .>>. pUnsignedBigInteger
+     |>> (fun (sign, value) -> if sign.IsSome then -1I * value else value )
+
+  let pFloatNumber: Parser<Number> =
+    opt (pchar '-') .>>. many1 digit .>> pchar '.' .>>. many digit
+    |>> (fun ((sign, intPart), decPart) ->
+           let value = charListToString intPart + "." + charListToString decPart
+                       |> fun str -> if sign.IsNone then str else "-" + str
+                       |> System.Double.Parse
+           Number.createFloat (Float Bit64) value
+        )
+
+  let pImpliedSignedInteger: Parser<Number> =
+    attempt pInteger
+    |>> (fun bigIntValue ->
+          { IntValue = bigIntValue; Type = NumType.getInferedType bigIntValue
+            FloatValue = 0.0 })
+
+  let pUInt32: Parser<Number> =
+    pUnsignedBigInteger .>> anyOf "uU"
+    |>> ( fun value -> Number.createInt (Signed Bit32) value )
+
+  let pUInt64: Parser<Number> =
+    pUnsignedBigInteger .>> (anyOf "uU" >>. (pstring "I" <|> pstringCI "L"))
+    |>> ( fun value -> Number.createInt (Unsigned Bit64) value )
+
+  let pUInt128: Parser<Number> =
+    pUnsignedBigInteger .>> (anyOf "uU" >>. (pstring "II" <|> pstringCI "LL"))
+    |>> ( fun value -> Number.createInt (Unsigned Bit128) value )
+
+  let pLong: Parser<Number> =
+    pInteger .>> anyOf "lLiI"
+    |>> ( fun value -> Number.createInt (Signed Bit64) value )
+
+  let pLongLong: Parser<Number> =
+    pInteger .>> (pstringCI "II" <|> pstringCI "LL")
+    |>> ( fun value -> Number.createInt (Signed Bit128) value )
+
+  let pAllNumbers =
+    attempt pBinOrHexInteger <|>
+    attempt pFloatNumber <|>
+    attempt pUInt128 <|>
+    attempt pUInt64 <|>
+    attempt pUInt32 <|>
+    attempt pLongLong <|>
+    attempt pLong <|>
+    attempt pImpliedSignedInteger
+
+  let constructInfixOp symbol op prec =
+    InfixOperator(symbol, getPosition .>> spaces, prec, Associativity.Left, op)
+
+  let constructInfixOpWithPos symbol op prec =
+    InfixOperator(symbol, getPosition .>> spaces, prec, Associativity.Left, (),
+        fun pos x y -> op x y pos)
+
+  let constructCastingOp symbol typ =
+    PrefixOperator(symbol, getPosition .>> spaces, 4, true, fun x -> cast x typ)
+
+  let constructNOTOperator =
+    PrefixOperator("~", getPosition .>> spaces, 4, true, (),
+      fun pos x -> bitwiseNOT x pos)
+
+  let strWs s = pstring s >>. spaces
 
   let opp =
-    new OperatorPrecedenceParser<DataType*Numbers, Position, unit>()
+    new OperatorPrecedenceParser<Number, Position, unit>()
+
   let expr = opp.ExpressionParser
-  let term = pV <|> between (str_ws "(") (str_ws ")") expr
+
+  let term =
+    (pAllNumbers .>> spaces) <|> between (strWs "(") (strWs ")") expr
 
   do
     opp.TermParser <- term
+    opp.AddOperator(constructInfixOp "+" add 2)
+    opp.AddOperator(constructInfixOp "-" sub 2)
+    opp.AddOperator(constructInfixOp "*" mul 3)
+    opp.AddOperator(constructInfixOpWithPos "/" div 3)
+    opp.AddOperator(constructInfixOpWithPos "%" modulo 3)
+    opp.AddOperator(constructInfixOpWithPos ">>" shiftRight 1)
+    opp.AddOperator(constructInfixOpWithPos "<<" shiftLeft 1)
+    opp.AddOperator(constructInfixOpWithPos "|" bitwiseOr 1)
+    opp.AddOperator(constructInfixOpWithPos "&" bitwiseAnd 1)
+    opp.AddOperator(constructInfixOpWithPos "^" bitwiseXOR 1)
+    opp.AddOperator(constructNOTOperator)
+    opp.AddOperator(constructCastingOp "(int8)" (Signed Bit8))
+    opp.AddOperator(constructCastingOp "(uint8)" (Unsigned Bit8))
+    opp.AddOperator(constructCastingOp "(int16)" (Signed Bit16))
+    opp.AddOperator(constructCastingOp "(uint16)" (Unsigned Bit16))
+    opp.AddOperator(constructCastingOp "(int32)" (Signed Bit32))
+    opp.AddOperator(constructCastingOp "(uint32)" (Unsigned Bit32))
+    opp.AddOperator(constructCastingOp "(int)" (Signed Bit32))
+    opp.AddOperator(constructCastingOp "(int64)" (Signed Bit64))
+    opp.AddOperator(constructCastingOp "(uint64)" (Unsigned Bit64))
+    opp.AddOperator(constructCastingOp "(int128)" (Signed Bit128))
+    opp.AddOperator(constructCastingOp "(uint128)" (Unsigned Bit128))
+    opp.AddOperator(constructCastingOp "(int256)" (Signed Bit256))
+    opp.AddOperator(constructCastingOp "(uint256)" (Unsigned Bit256))
+    opp.AddOperator(constructCastingOp "(float32)" (Float Bit32))
+    opp.AddOperator(constructCastingOp "(float)" (Float Bit64))
 
-    opp.AddOperator(
-      InfixOperator("+", getPosition .>> ws, 2, Associativity.Left,
-        fun x y -> (add x y))
-    )
+module SimpleArithASCIIPArser =
+  let parseSingleByte =
+    hex .>>. hex |>> (fun (a, b) -> "0x" + string a + string b)
 
-    opp.AddOperator(
-      InfixOperator("-", getPosition .>> ws, 2, Associativity.Left,
-        fun x y -> (sub x y))
-    )
-    opp.AddOperator(
-      InfixOperator("/", getPosition .>> ws, 3, Associativity.Left, (),
-        fun pos x y -> (div x y pos))
-    )
-    opp.AddOperator(
-      InfixOperator("%", getPosition .>> ws, 3, Associativity.Left, (),
-        fun pos x y -> (modulo x y pos))
-    )
-    opp.AddOperator(
-      InfixOperator(">>", getPosition .>> ws, 1, Associativity.Left, (),
-        fun pos x y -> shift x y (>>>) pos)
-    )
-    opp.AddOperator(
-      InfixOperator("<<", getPosition .>> ws, 1, Associativity.Left, (),
-        fun pos x y -> shift x y (<<<) pos)
-    )
+  let parseSingleHexDigit: Parser<string, unit> =
+    hex |>> (fun a -> "0x0" + string a)
 
-    opp.AddOperator(
-      InfixOperator("&", getPosition .>> ws, 1, Associativity.Left, (),
-        fun pos x y -> bitwiseANDORXOR (&&&) x y pos)
-    )
+  let parseOddNumberOfHexDigits =
+    pstringCI "0x" >>. parseSingleHexDigit .>>. many parseSingleByte
+    |>> (fun (a, b) -> a :: b)
 
-    opp.AddOperator(
-      InfixOperator("^", getPosition .>> ws, 1, Associativity.Left, (),
-        fun pos x y -> bitwiseANDORXOR (^^^) x y pos)
-    )
+  let parseEvenNumberOfHexDigits =
+    pstringCI "0x" >>. many parseSingleByte
 
-    opp.AddOperator(
-      InfixOperator("|", getPosition .>> ws, 1, Associativity.Left, (),
-        fun pos x y -> bitwiseANDORXOR (|||) x y pos)
-    )
+  let parseEvenHexWithoutPrefix =
+    parseSingleByte .>>. many1 parseSingleByte |>> (fun (a, b) -> a :: b)
 
-    opp.AddOperator(
-      InfixOperator("*", getPosition .>> ws, 3, Associativity.Left,
-        fun x y -> (mul x y))
-    )
+  let parseOddHexWithoutPrefix =
+    parseSingleHexDigit .>>. parseSingleByte .>>. many1 parseSingleByte
+    |>> (fun ((a, b), c) -> a :: b :: c)
 
-    opp.AddOperator(
-      PrefixOperator("~", getPosition .>> ws, 4, true, (),
-        fun pos x -> (bitwiseNOT x pos))
-    )
+  let parseDigit = anyOf "123456789"
 
-    opp.AddOperator(
-      PrefixOperator("(int8)", getPosition .>> ws, 4, true,
-        fun x -> convert (fst x) (Signed B8) (getValue (snd x)))
-    )
-    opp.AddOperator(
-      PrefixOperator("(uint8)", getPosition .>> ws, 4, true,
-        fun x -> convert (fst x) (Unsigned B8) (getValue (snd x)))
-    )
-    opp.AddOperator(
-      PrefixOperator("(int16)", getPosition .>> ws, 4, true,
-        fun x -> convert (fst x) (Signed B16) (getValue (snd x)))
-    )
-    opp.AddOperator(
-      PrefixOperator("(uint16)", getPosition .>> ws, 4, true,
-        fun x -> convert (fst x) (Unsigned B16) (getValue (snd x)))
-    )
-    opp.AddOperator(
-      PrefixOperator("(int)", getPosition .>> ws, 4, true,
-        fun x -> convert (fst x) (Signed B32) (getValue (snd x)))
-    )
-    opp.AddOperator(
-      PrefixOperator("(int32)", getPosition .>> ws, 4, true,
-        fun x -> convert (fst x) (Signed B32) (getValue (snd x)))
-    )
-    opp.AddOperator(
-      PrefixOperator("(uint32)", getPosition .>> ws, 4, true,
-        fun x -> convert (fst x) (Unsigned B32) (getValue (snd x)))
-    )
-    opp.AddOperator(
-      PrefixOperator("(int64)", getPosition .>> ws, 4, true,
-        fun x -> convert (fst x) (Signed B64) (getValue (snd x)))
-    )
-    opp.AddOperator(
-      PrefixOperator("(uint64)", getPosition .>> ws, 4, true,
-        fun x -> convert (fst x) (Unsigned B64) (getValue (snd x)))
-    )
-    opp.AddOperator(
-      PrefixOperator("(int128)", getPosition .>> ws, 4, true,
-        fun x -> convert (fst x) (Signed B128) (getValue (snd x)))
-    )
-    opp.AddOperator(
-      PrefixOperator("(uint128)", getPosition .>> ws, 4, true,
-        fun x -> convert (fst x) (Unsigned B128) (getValue (snd x)))
-    )
-    opp.AddOperator(
-      PrefixOperator("(int256)", getPosition .>> ws, 4, true,
-        fun x -> convert (fst x) (Signed B256) (getValue (snd x)))
-    )
-    opp.AddOperator(
-      PrefixOperator("(uint256)", getPosition .>> ws, 4, true,
-        fun x -> convert (fst x) (Unsigned B256) (getValue (snd x)))
-    )
-    opp.AddOperator(
-      PrefixOperator("(float32)", getPosition .>> ws, 4, true,
-        fun x -> convert (fst x) (Float BF32) (getValue (snd x)))
-    )
-    opp.AddOperator(
-      PrefixOperator("(float)", getPosition .>> ws, 4, true,
-        fun x -> convert (fst x) (Float BF64) (getValue (snd x)))
-    )
+  let parseSingleDigit = digit |>> (fun a -> [string a])
+
+  let parseDoubleDigit =
+    parseDigit .>>. digit |>> (fun (a, b) -> [string a + string b])
+
+  let parseTripleDigit =
+    parseDigit .>>. digit .>>. digit
+    |>> (fun ((a, b), c) -> [string a + string b + string c])
+
+  let parseDecimal =
+    attempt parseTripleDigit
+    <|> attempt parseDoubleDigit
+    <|> parseSingleDigit
+
+  let parseHexadecimal =
+    attempt parseOddHexWithoutPrefix
+    <|> attempt parseEvenHexWithoutPrefix
+    <|> attempt parseOddNumberOfHexDigits
+    <|> attempt parseEvenNumberOfHexDigits
+
+  let parseOctal = anyOf "01234567"
+
+  let parseSingleOctalDigit =
+    parseOctal |>> (fun a -> "0o00" + string a)
+
+  let parseDoubleOctalDigit =
+    parseOctal .>>. parseOctal
+    |>> (fun (a, b) -> "0o0" + string a + string b)
+
+  let parseTripleOctalDigit =
+    (parseOctal .>>. parseOctal .>>. parseOctal)
+    |>> (fun ((a, b), c) -> "0o" + string a + string b + string c)
+
+  let parseWholeOctalNumber = many1 parseTripleOctalDigit
+
+  let parseOctalRemainderOne =
+    parseSingleOctalDigit .>>. many parseTripleOctalDigit
+    |>> (fun (a, b) -> a :: b)
+
+  let parseOctalRemainderTwo =
+    parseDoubleOctalDigit .>>. many parseTripleOctalDigit
+    |>> (fun (a, b) -> a :: b)
+
+  let parseOctalDigits =
+    attempt parseOctalRemainderOne
+    <|> attempt parseOctalRemainderTwo
+    <|> parseWholeOctalNumber
+
+  let parseOctalNumber =
+    pstringCI "0o" >>. parseOctalDigits
+
+  let all =
+    attempt parseHexadecimal
+    <|> attempt parseOctalNumber
+    <|> parseDecimal
+
+  let run str =
+    runParserOnString all () "" str

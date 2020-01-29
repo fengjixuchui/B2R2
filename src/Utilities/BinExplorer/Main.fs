@@ -1,8 +1,6 @@
 (*
   B2R2 - the Next-Generation Reversing Platform
 
-  Author: Sang Kil Cha <sangkilc@kaist.ac.kr>
-
   Copyright (c) SoftSec Lab. @ KAIST, since 2016
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -27,13 +25,18 @@
 module B2R2.Utilities.BinExplorer.Main
 
 open B2R2
-open B2R2.BinGraph
 open B2R2.FrontEnd
+open B2R2.BinCorpus
+open B2R2.BinGraph
+open B2R2.MiddleEnd
 open B2R2.Visualization
 open B2R2.Utilities
 
 type BinExplorerOpts (isa) =
   inherit CmdOpts()
+
+  /// IP address to bind.
+  member val IP = "localhost" with get, set
 
   /// Host port number.
   member val Port = 8282 with get, set
@@ -53,18 +56,30 @@ type BinExplorerOpts (isa) =
 
   /// Enable readline mode or not. This option will be removed when .NET bug:
   /// https://github.com/dotnet/corefx/issues/32174 is fixed.
-  member val EnableReadLine = false with get, set
+  member val EnableReadLine = true with get, set
 
   static member private ToThis (opts: CmdOpts) =
     match opts with
     | :? BinExplorerOpts as opts -> opts
     | _ -> failwith "Invalid Opts."
 
+  /// We can specify an IP to use to enable remote access, but we should make
+  /// sure the two things:
+  /// (1) Make sure we have a permission to bind to the IP address. On Windows,
+  ///     we may have to run `netsh` command to enable this. For example:
+  ///     netsh http add urlacl url=http://192.168.1.1:8282/ user=sangkilc
+  /// (2) Make sure firewall does not block the connection.
+  static member OptIP () =
+    let cb (opts: #CmdOpts) (arg: string []) =
+      (BinExplorerOpts.ToThis opts).IP <- arg.[0]; opts
+    CmdOpts.New ( descr = "Specify IP <address> (default: localhost)",
+                  extra = 1, callback = cb, long = "--ip" )
+
   static member OptPort () =
     let cb (opts: #CmdOpts) (arg: string []) =
       (BinExplorerOpts.ToThis opts).Port <- int arg.[0]; opts
     CmdOpts.New ( descr = "Specify host port <number> (default: 8282)",
-                  callback = cb, short = "-p", long = "--port" )
+                  extra = 1, callback = cb, short = "-p", long = "--port" )
 
   static member OptLogFile () =
     let cb (opts: #CmdOpts) (arg: string []) =
@@ -81,10 +96,10 @@ type BinExplorerOpts (isa) =
 
   static member OptReadLine () =
     let cb (opts: #CmdOpts) (_arg : string []) =
-      (BinExplorerOpts.ToThis opts).EnableReadLine <- true; opts
+      (BinExplorerOpts.ToThis opts).EnableReadLine <- false; opts
     CmdOpts.New (
-      descr = "Enable readline feature for BinExplorer",
-      callback = cb, long = "--readline")
+      descr = "Disable readline feature for BinExplorer",
+      callback = cb, long = "--no-readline")
 
   static member OptJsonDumpDir () =
     let cb (opts: #CmdOpts) (arg : string []) =
@@ -101,6 +116,7 @@ let spec =
 
     CmdOpts.New ( descr="\n[Host Configuration]\n", dummy=true )
 
+    BinExplorerOpts.OptIP ()
     BinExplorerOpts.OptPort ()
 
     CmdOpts.New ( descr="\n[Logging Configuration]\n", dummy=true )
@@ -123,17 +139,18 @@ let buildGraph _verbose handle =
   BinEssence.Init handle
 
 let startGUI (opts: BinExplorerOpts) arbiter =
-  HTTPServer.startServer arbiter opts.Port opts.Verbose |> Async.Start
+  HTTPServer.startServer arbiter opts.IP opts.Port opts.Verbose
+  |> Async.Start
 
 /// Dump each CFG into JSON file. This feature is implemented to ease the
 /// development and debugging process, and may be removed in the future.
 let dumpJsonFiles jsonDir ess =
   try System.IO.Directory.Delete(jsonDir, true) with _ -> ()
   System.IO.Directory.CreateDirectory(jsonDir) |> ignore
-  BinaryApparatus.getInternalFunctions ess.BinaryApparatus
-  |> Seq.iter (fun { CalleeName = name; Addr = addr } ->
-    let disasmJsonPath = Printf.sprintf "%s/%s.disasmCFG" jsonDir name
-    let irJsonPath = Printf.sprintf "%s/%s.irCFG" jsonDir name
+  Apparatus.getInternalFunctions ess.Apparatus
+  |> Seq.iter (fun { CalleeID = id; Addr = addr } ->
+    let disasmJsonPath = Printf.sprintf "%s/%s.disasmCFG" jsonDir id
+    let irJsonPath = Printf.sprintf "%s/%s.irCFG" jsonDir id
     let encoding = System.Text.Encoding.UTF8
     let cfg, root = ess.SCFG.GetFunctionCFG (Option.get addr)
     let irJson =
@@ -141,8 +158,8 @@ let dumpJsonFiles jsonDir ess =
       |> fst
       |> JSONExport.toStr
       |> encoding.GetBytes
-    let lens = DisasmLens.Init (ess.BinHandler)
-    let disasmcfg, roots = lens.Filter cfg [root] ess.BinaryApparatus
+    let lens = DisasmLens.Init ess.Apparatus
+    let disasmcfg, roots = lens.Filter cfg [root] ess.Apparatus
     let disasmJson =
       VisGraph.ofCFG disasmcfg roots
       |> fst
@@ -160,7 +177,7 @@ let interactiveMain files (opts: BinExplorerOpts) =
               Type --help or --batch to see more info."; exit 1
   else
     let file = List.head files
-    let ess = initBinHdl ISA.DefaultISA file |> buildGraph opts.Verbose
+    let ess = initBinHdl opts.ISA file |> buildGraph opts.Verbose
     if opts.JsonDumpDir <> "" then dumpJsonFiles opts.JsonDumpDir ess else ()
     let arbiter = Protocol.genArbiter ess opts.LogFile
     startGUI opts arbiter

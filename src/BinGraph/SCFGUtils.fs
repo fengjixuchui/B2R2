@@ -1,9 +1,6 @@
 (*
   B2R2 - the Next-Generation Reversing Platform
 
-  Author: Soomin Kim <soomink@kaist.ac.kr>
-          Sang Kil Cha <sangkilc@kaist.ac.kr>
-
   Copyright (c) SoftSec Lab. @ KAIST, since 2016
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -30,6 +27,7 @@ module B2R2.BinGraph.SCFGUtils
 
 open B2R2
 open B2R2.BinIR.LowUIR
+open B2R2.BinCorpus
 open System.Collections.Generic
 
 type VMap = Dictionary<ProgramPoint, Vertex<IRBasicBlock>>
@@ -43,39 +41,41 @@ let hasNoFallThrough (stmts: Stmt []) =
     | _ -> false
   else false
 
-let private selectPair app (myPoint: ProgramPoint) (nextLeader: ProgramPoint) =
+let private selectInfo app (myPoint: ProgramPoint) (nextLeader: ProgramPoint) =
   match app.InstrMap.TryGetValue (myPoint.Address) with
   | false, _ -> None, nextLeader
-  | true, ((ins, stmts) as pair) ->
+  | true, i ->
     if myPoint.Address <> nextLeader.Address then
-      let nextInsAddr = ins.Address + uint64 ins.Length
+      let nextInsAddr = i.Instruction.Address + uint64 i.Instruction.Length
       let nextPoint =
-        if stmts.Length > 0 && hasNoFallThrough stmts then nextLeader
+        if i.Stmts.Length > 0 && hasNoFallThrough i.Stmts then nextLeader
         else ProgramPoint (nextInsAddr, 0)
       if myPoint.Position > 0 then
-        let delta = stmts.Length - myPoint.Position
-        Some (ins, Array.sub stmts myPoint.Position delta), nextPoint
-      else Some pair, nextPoint
+        let delta = i.Stmts.Length - myPoint.Position
+        let i' = { i with Stmts = Array.sub i.Stmts myPoint.Position delta }
+        Some i', nextPoint
+      else Some i, nextPoint
     else
       let delta = nextLeader.Position - myPoint.Position
-      Some (ins, Array.sub stmts myPoint.Position delta), nextLeader
+      let i' = { i with Stmts = Array.sub i.Stmts myPoint.Position delta }
+      Some i', nextLeader
 
 let rec private gatherBB acc app (leaders: ProgramPoint []) myPoint nextIdx =
   if nextIdx >= leaders.Length then
     match app.InstrMap.TryGetValue ((myPoint: ProgramPoint).Address) with
     | false, _ -> List.rev acc |> List.toArray
-    | true, ((ins, _) as pair) ->
-      let nextInsAddr = ins.Address + uint64 ins.Length
+    | true, i ->
+      let nextInsAddr = i.Instruction.Address + uint64 i.Instruction.Length
       let nextPoint = ProgramPoint (nextInsAddr, 0)
-      gatherBB (pair :: acc) app leaders nextPoint nextIdx
+      gatherBB (i :: acc) app leaders nextPoint nextIdx
   else
     let nextLeader = leaders.[nextIdx]
     if nextLeader > myPoint then
-      match selectPair app myPoint nextLeader with
+      match selectInfo app myPoint nextLeader with
       | None, _ -> [||]
-      | Some pair, nextPoint ->
-        let acc = pair :: acc
-        if hasNoFallThrough (snd pair) then List.rev acc |> List.toArray
+      | Some info, nextPoint ->
+        let acc = info :: acc
+        if hasNoFallThrough info.Stmts then List.rev acc |> List.toArray
         else gatherBB acc app leaders nextPoint nextIdx
     elif nextLeader = myPoint then List.rev acc |> List.toArray
     (* Next point is beyond the next leader's point. This is possible when two
@@ -85,10 +85,10 @@ let rec private gatherBB acc app (leaders: ProgramPoint []) myPoint nextIdx =
 
 let createNode (g: IRCFG) app (vmap: VMap) (leaders: ProgramPoint []) idx =
   let leader = leaders.[idx]
-  let pairs = gatherBB [] app leaders leader (idx + 1)
-  if pairs.Length = 0 then ()
+  let instrs = gatherBB [] app leaders leader (idx + 1)
+  if instrs.Length = 0 then ()
   else
-    let b = IRBasicBlock (pairs, leader)
+    let b = IRBasicBlock (instrs, leader)
     let v = g.AddVertex b
     vmap.[leader] <- v
 
@@ -167,6 +167,10 @@ let connectEdges _ (g: IRCFG) app (vmap: VMap) (leaders: ProgramPoint[]) idx =
     | InterCJmp (_, _, Num addr1, Num addr2) ->
       addInterEdge g vmap src (BitVector.toUInt64 addr1) InterCJmpTrueEdge
       addInterEdge g vmap src (BitVector.toUInt64 addr2) InterCJmpFalseEdge
+    | InterCJmp (_, _, Num addr, _) ->
+      addInterEdge g vmap src (BitVector.toUInt64 addr) InterCJmpTrueEdge
+    | InterCJmp (_, _, _, Num addr) ->
+      addInterEdge g vmap src (BitVector.toUInt64 addr) InterCJmpFalseEdge
     | InterJmp (_, _, InterJmpInfo.IsCall) -> (* Indirect call *)
       if idx + 1 >= leaders.Length then () else addFallthroughEdge g vmap src
       addIndirectEdges g app vmap src
@@ -179,8 +183,8 @@ let connectEdges _ (g: IRCFG) app (vmap: VMap) (leaders: ProgramPoint[]) idx =
       else handleFallThrough g vmap src leaders.[idx + 1]
 
 let computeBoundaries app (vmap: VMap) =
-  app.LeaderPositions
+  app.LeaderInfos
   |> Set.fold (fun set leader ->
-    match vmap.TryGetValue leader with
+    match vmap.TryGetValue leader.Point with
     | false, _ -> set
     | true, v -> IntervalSet.add v.VData.Range set) IntervalSet.empty

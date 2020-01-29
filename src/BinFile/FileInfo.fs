@@ -1,10 +1,6 @@
 (*
   B2R2 - the Next-Generation Reversing Platform
 
-  Author: Sang Kil Cha <sangkilc@kaist.ac.kr>
-          Seung Il Jung <sijung@kaist.ac.kr>
-          DongYeop Oh <oh51dy@kaist.ac.kr>
-
   Copyright (c) SoftSec Lab. @ KAIST, since 2016
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -173,12 +169,17 @@ type FileInfo () =
   abstract member GetRelocationSymbols: unit -> seq<Symbol>
 
   /// <summary>
-  ///   Return a list of all the segments from the binary.
+  ///   Return a list of segments from the binary. If the isLoadable parameter
+  ///   is true, it will only return a list of "loadable" segments. Otherwise,
+  ///   it will return all possible segments. By default, this function returns
+  ///   only loadable segments, e.g., PT_LOAD segment of ELF.
   /// </summary>
   /// <returns>
   ///   A sequence of segments.
   /// </returns>
-  abstract member GetSegments: unit -> seq<Segment>
+  abstract member GetSegments:
+    [<Optional; DefaultParameterValue(true)>] isLoadable:bool
+    -> seq<Segment>
 
   /// <summary>
   ///   Return a list of the segments from the binary, which contain the given

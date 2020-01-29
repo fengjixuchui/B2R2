@@ -1,9 +1,6 @@
 (*
   B2R2 - the Next-Generation Reversing Platform
 
-  Author: Seung Il Jung <sijung@kaist.ac.kr>
-          DongYeop Oh <oh51dy@kaist.ac.kr>
-
   Copyright (c) SoftSec Lab. @ KAIST, since 2016
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -607,6 +604,9 @@ let currentModeIsNotUser ctxt =
 let replicate expr regType lsb width value =
   let v = BitVector.ofUBInt (BigInteger.getMask width <<< lsb) regType
   if value = 0 then expr .& (v |> BitVector.bnot |> num) else expr .| (v |> num)
+
+/// All-ones bitstring, on page AppxP-2652.
+let ones rt = BitVector.ofUBInt (RegType.getMask rt) rt |> num
 
 let writeModeBits ctxt value isExcptReturn (builder: StmtBuilder) =
   let lblL8 = lblSymbol "L8"
@@ -1505,6 +1505,11 @@ let mvn isSetFlags insInfo ctxt =
     else ()
   putEndLabel ctxt lblIgnore isUnconditional None builder
   endMark insInfo builder
+
+let svc insInfo ctxt =
+  match insInfo.Operands with
+  | OneOperand (OprImm n) -> sideEffects insInfo (Interrupt (int n))
+  | _ -> raise InvalidOperandException
 
 let getImmShiftFromShiftType imm = function
   | SRTypeLSL | SRTypeROR -> imm
@@ -2846,7 +2851,9 @@ let vpopLoop ctxt d imm isSReg addr (builder: StmtBuilder) =
       let word1 = loadLE 32<rt> addr
       let word2 = loadLE 32<rt> (addr .+ (num <| BitVector.ofInt32 4 32<rt>))
       let nextAddr = addr .+ (num <| BitVector.ofInt32 8 32<rt>)
-      builder <! (getRegVar ctxt reg := concat word1 word2)
+      let isbig = ctxt.Endianness = Endian.Big
+      builder <! (getRegVar ctxt reg := if isbig then concat word1 word2
+                                        else concat word2 word1)
       nonSingleRegLoop (r + 1) nextAddr
     else ()
   let loopFn = if isSReg then singleRegLoop else nonSingleRegLoop
@@ -2881,8 +2888,11 @@ let vpushLoop ctxt d imm isSReg addr (builder: StmtBuilder) =
       let mem1 = loadLE 32<rt> addr
       let mem2 = loadLE 32<rt> (addr .+ (num <| BitVector.ofInt32 4 32<rt>))
       let nextAddr = addr .+ (num <| BitVector.ofInt32 8 32<rt>)
-      builder <! (mem1 := extractHigh 32<rt> (getRegVar ctxt reg))
-      builder <! (mem2 := extractLow 32<rt> (getRegVar ctxt reg))
+      let isbig = ctxt.Endianness = Endian.Big
+      let data1 = extractHigh 32<rt> (getRegVar ctxt reg)
+      let data2 = extractLow 32<rt> (getRegVar ctxt reg)
+      builder <! (mem1 := if isbig then data1 else data2)
+      builder <! (mem2 := if isbig then data2 else data1)
       nonSingleRegLoop (r + 1) nextAddr
     else ()
   let loopFn = if isSReg then singleRegLoop else nonSingleRegLoop
@@ -3686,7 +3696,7 @@ let vectorCompare insInfo ctxt cmp =
       let src2 = if isImm src2 then num0 p.RtESize
                  else elem (extract src2 64<rt> (r * 64)) e p.ESize
       let t = cmp (elem src1 e p.ESize) src2
-      builder <! (elem rd e p.ESize := ite t (num1 p.RtESize) (num0 p.RtESize))
+      builder <! (elem rd e p.ESize := ite t (ones p.RtESize) (num0 p.RtESize))
   putEndLabel ctxt lblIgnore isUnconditional None builder
   endMark insInfo builder
 
@@ -4352,6 +4362,7 @@ let translate insInfo ctxt =
   | Op.ADDS -> adds true insInfo ctxt
   | Op.BL -> bl insInfo ctxt
   | Op.BLX -> branchWithLink insInfo ctxt
+  | Op.BKPT -> sideEffects insInfo Breakpoint
   | Op.PUSH -> push insInfo ctxt
   | Op.SUB | Op.SUBW -> sub false insInfo ctxt
   | Op.SUBS -> subs true insInfo ctxt
@@ -4444,8 +4455,10 @@ let translate insInfo ctxt =
   | Op.STMDA -> stm Op.STMDA insInfo ctxt (.-)
   | Op.STMDB -> stm Op.STMDB insInfo ctxt (.-)
   | Op.STMIB -> stm Op.STMIB insInfo ctxt (.+)
-  | Op.CDP | Op.CDP2 | Op.LDC2
-  | Op.STCL | Op.SVC | Op.MRC | Op.MRC2 | Op.LDCL ->
+  | Op.SVC -> svc insInfo ctxt
+  | Op.CDP | Op.CDP2 | Op.LDC | Op.LDC2 | Op.LDC2L | Op.LDCL | Op.MCR | Op.MCR2
+  | Op.MCRR | Op.MCRR2 | Op.MRC | Op.MRC2 | Op.MRRC | Op.MRRC2
+  | Op.STC | Op.STC2 | Op.STC2L | Op.STCL ->
     sideEffects insInfo UnsupportedExtension (* coprocessor instructions *)
   | Op.CBNZ -> cbz true insInfo ctxt
   | Op.CBZ -> cbz false insInfo ctxt
@@ -4514,9 +4527,10 @@ let translate insInfo ctxt =
   | Op.VSHR -> vshr insInfo ctxt
   | Op.VTBL -> vecTbl insInfo ctxt true
   | Op.VTBX -> vecTbl insInfo ctxt false
-  | Op.VCMP | Op.VCMPE | Op.VACGE | Op.VACGT | Op.VACLE | Op.VACLT
-  | Op.VCVT | Op.VCVTR
-  | Op.VDIV -> sideEffects insInfo UnsupportedFP
+  | Op.VCMP | Op.VCMPE | Op.VACGE | Op.VACGT | Op.VACLE | Op.VACLT | Op.VCVT
+  | Op.VCVTR | Op.VDIV | Op.VFMA | Op.VFMS | Op.VFNMA | Op.VFNMS | Op.VMSR
+  | Op.VNMLA | Op.VNMLS | Op.VNMUL | Op.VSQRT ->
+    sideEffects insInfo UnsupportedFP
   | Op.VCEQ | Op.VCGE | Op.VCGT | Op.VCLE | Op.VCLT
     when isF32orF64 insInfo.SIMDTyp -> sideEffects insInfo UnsupportedFP
   | Op.VCEQ -> vceq insInfo ctxt

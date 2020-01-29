@@ -1,8 +1,6 @@
 (*
   B2R2 - the Next-Generation Reversing Platform
 
-  Author: Soomin Kim <soomink@kaist.ac.kr>
-
   Copyright (c) SoftSec Lab. @ KAIST, since 2016
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -29,6 +27,7 @@ namespace B2R2.BinGraph
 open B2R2
 open B2R2.BinIR
 open B2R2.FrontEnd
+open B2R2.BinCorpus
 open B2R2.ConcEval
 open B2R2.BinGraph.EmulationHelper
 
@@ -84,7 +83,7 @@ module private NoReturnHelper =
           |> retrieveSyscallState hdl
         with _ -> false
     else
-      isKnownNoReturnFunction v.VData.Name && v.VData.IsExternal
+      isKnownNoReturnFunction v.VData.ID && v.VData.IsExternal
 
   let rec findLoop hdl scfg (cg: CallCFG) vmap =
     (* XXX: currently just perform a single scan. *)

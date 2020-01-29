@@ -1,8 +1,6 @@
 (*
   B2R2 - the Next-Generation Reversing Platform
 
-  Author: Sang Kil Cha <sangkilc@kaist.ac.kr>
-
   Copyright (c) SoftSec Lab. @ KAIST, since 2016
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -42,6 +40,15 @@ type ParsingContext (archMode) =
   /// IT hint instruction is encountered.
   member val ITBlockStarted = false with get, set
 
+  /// Indicate the address offset of the code. This is used in several
+  /// architectures, such as EVM, to correctly resolve jump offsets in a
+  /// dynamically generated code snippet.
+  member val CodeOffset = 0UL with get, set
+
+  /// Indicate whether the next instruction should be executed in parallel. This
+  /// is used by DSP architectures.
+  member val InParallel = false with get, set
+
 /// A high-level interface for the translation context, which stores several
 /// states for translating/lifting instructions.
 [<AbstractClass>]
@@ -70,3 +77,8 @@ type TranslationContext (isa) =
   ///   Returns an IR expression of a pseudo-register.
   /// </returns>
   abstract member GetPseudoRegVar: id: RegisterID -> idx: int -> Expr
+
+  /// <summary>
+  ///   Get the current stack instance.
+  /// </summary>
+  abstract member GetStack: unit -> ExprStack

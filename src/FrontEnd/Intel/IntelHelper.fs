@@ -1,10 +1,6 @@
 (*
   B2R2 - the Next-Generation Reversing Platform
 
-  Author: Sang Kil Cha <sangkilc@kaist.ac.kr>
-          Seung Il Jung <sijung@kaist.ac.kr>
-          DongYeop Oh <oh51dy@kaist.ac.kr>
-
   Copyright (c) SoftSec Lab. @ KAIST, since 2016
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -29,10 +25,7 @@
 module internal B2R2.FrontEnd.Intel.Helper
 
 open B2R2
-
-/// This exception occurs when parsing binary code failed. This exception
-/// indicates a non-recoverable parsing failure.
-exception ParsingFailureException
+open B2R2.FrontEnd
 
 /// Create a new instruction descriptor.
 let newTemporaryIns opcode operands preInfo insSize =

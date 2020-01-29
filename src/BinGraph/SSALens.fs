@@ -1,9 +1,6 @@
 (*
   B2R2 - the Next-Generation Reversing Platform
 
-  Author: Soomin Kim <soomink@kaist.ac.kr>
-          Sang Kil Cha <sangkilc@kaist.ac.kr>
-
   Copyright (c) SoftSec Lab. @ KAIST, since 2016
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -27,14 +24,16 @@
 
 namespace B2R2.BinGraph
 
+open B2R2
+
 /// A graph lens for obtaining SSACFG.
 type SSALens (hdl, scfg) =
   let getVertex g (vMap: SSAVMap) (oldSrc: Vertex<IRBasicBlock>) =
     let pos = oldSrc.VData.PPoint
     match vMap.TryGetValue pos with
     | false, _ ->
-      let pairs = oldSrc.VData.GetPairs ()
-      let v = (g: SSACFG).AddVertex (SSABBlock (hdl, scfg, pos, pairs))
+      let instrs = oldSrc.VData.GetInsInfos ()
+      let v = (g: SSACFG).AddVertex (SSABBlock (hdl, scfg, pos, instrs))
       vMap.Add (pos, v)
       v
     | true, v -> v

@@ -1,8 +1,6 @@
 (*
   B2R2 - the Next-Generation Reversing Platform
 
-  Author: Sang Kil Cha <sangkilc@kaist.ac.kr>
-
   Copyright (c) SoftSec Lab. @ KAIST, since 2016
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -28,6 +26,8 @@ namespace B2R2.BinIR
 
 /// Side effect kinds.
 type SideEffect =
+  /// Software breakpoint.
+  | Breakpoint
   /// CPU clock access, e.g., RDTSC on x86.
   | ClockCounter
   /// Memory fence operations, e.g., LFENCE/MFENCE/SFENCE on x86.
@@ -57,6 +57,7 @@ type SideEffect =
 
 module SideEffect =
   let toString = function
+    | Breakpoint -> "Breakpoint"
     | ClockCounter -> "CLK"
     | Fence -> "Fence"
     | Halt -> "Halt"

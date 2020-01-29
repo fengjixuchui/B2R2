@@ -1,8 +1,6 @@
 (*
   B2R2 - the Next-Generation Reversing Platform
 
-  Author: Sang Kil Cha <sangkilc@kaist.ac.kr>
-
   Copyright (c) SoftSec Lab. @ KAIST, since 2016
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -26,6 +24,8 @@
 
 namespace B2R2.BinGraph
 
+open B2R2.BinCorpus
+
 /// The Lens interface, which is a converter from a graph to another graph. In
 /// B2R2, An IR-level SCFG forms the basis, and we should apply different lenses
 /// to obtain different graphs. For example, we can get disassembly-based CFG by
@@ -43,5 +43,6 @@ type ILens<'V when 'V :> BasicBlock and 'V: equality> =
   abstract member Filter:
        graph: IRCFG
     -> roots: Vertex<IRBasicBlock> list
-    -> app: BinaryApparatus
+    -> app: Apparatus
     -> ControlFlowGraph<'V, CFGEdgeKind> * Vertex<'V> list
+

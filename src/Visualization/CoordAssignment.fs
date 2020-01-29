@@ -1,9 +1,6 @@
 (*
   B2R2 - the Next-Generation Reversing Platform
 
-  Author: Soomin Kim <soomink@kaist.ac.kr>
-          Sang Kil Cha <sangkilc@kaist.ac.kr>
-
   Copyright (c) SoftSec Lab. @ KAIST, since 2016
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -172,10 +169,11 @@ let fixShift (xs: FloatMap) (shift: FloatMap) (sink: VertexMap) u v = function
 
 let adjustX (xs: FloatMap) u v = function
   | Leftmost ->
-    xs.[v] <- max xs.[v] (xs.[u] + u.VData.Width + blockIntervalX)
+    xs.[v] <-
+      max xs.[v] (xs.[u] + u.VData.Width + v.VData.Width / 2.0 + blockIntervalX)
   | Rightmost ->
     xs.[v] <-
-      min xs.[v] (xs.[u] - v.VData.Width - u.VData.Width - blockIntervalX)
+      min xs.[v] (xs.[u] - v.VData.Width - u.VData.Width / 2.0 - blockIntervalX)
 
 let rec placeBlock vLayout hDir root align sink shift xs v =
   if not (Double.IsNaN (xs: FloatMap).[v]) then ()
@@ -221,32 +219,34 @@ let hCompact vGraph vLayout (root: VertexMap) (align: VertexMap) hDir =
       xs.[v] <- xs.[v] + s
     else ()
   )
-  xs
+  xs, hDir
 
 let alignAndCompact vGraph vLayout maxLayer conflicts vDir hDir =
   let root, align = vAlign vGraph vLayout maxLayer conflicts vDir hDir
   hCompact vGraph vLayout root align hDir
 
-let calcPosInfo (xs: FloatMap) acc (vertices: Vertex<_> []) =
-  let left = xs.[vertices.[0]]
-  let width = xs.[vertices.[Array.length vertices - 1]] - xs.[vertices.[0]]
-  (left, width) :: acc
+let getBound vLayout (xs: FloatMap, hDir) =
+  vLayout
+  |> Array.fold (fun (minWidth, bound) (vertices: Vertex<_> []) ->
+    let left = xs.[vertices.[0]]
+    let last = vertices.[vertices.Length - 1]
+    let right = xs.[last] + last.VData.Width
+    let width = right - left
+    if width < minWidth then minWidth, if hDir = Leftmost then left else right
+    else minWidth, bound) (Double.PositiveInfinity, 0.0)
+  |> fun (_, bound) -> bound, xs, hDir
 
-let getIndexInfo vLayout (xs: FloatMap) =
-  let posInfos = Array.fold (calcPosInfo xs) [] vLayout
-  let lefts, widths = List.unzip posInfos
-  List.min lefts, List.min widths
-
-let assign vLayout xAlignments =
-  let posInfos = List.map (getIndexInfo vLayout) xAlignments
-  let minLeft, _ = List.minBy (fun (_, width) -> width) posInfos
-  List.iter (fun ((left, _), xs: FloatMap) ->
+let alignToSmallestWidth vLayout xAlignments =
+  List.map (getBound vLayout) xAlignments
+  |> List.iter (fun (bound, xs: FloatMap, hDir) ->
+    let delta =
+      if hDir = Leftmost then bound - Seq.min xs.Values
+      else bound - Seq.max xs.Values
     xs.Keys
     |> Seq.toArray
-    |> Array.iter (fun k ->
-      xs.[k] <- xs.[k] + minLeft - left))
-      (List.zip posInfos xAlignments)
+    |> Array.iter (fun k -> xs.[k] <- xs.[k] + delta))
   xAlignments
+  |> List.map fst
 
 let collectX xPerV (xs: FloatMap) =
   xs.Keys
@@ -281,7 +281,7 @@ let assignXCoordinates (vGraph: VisGraph) vLayout =
     alignAndCompact vGraph vLayout maxLayer conflicts Topmost Rightmost
     alignAndCompact vGraph vLayout maxLayer conflicts Bottommost Leftmost
     alignAndCompact vGraph vLayout maxLayer conflicts Bottommost Rightmost ]
-  |> assign vLayout
+  |> alignToSmallestWidth vLayout
   |> averageMedian
 
 let assignYCoordinate y vertices =
@@ -321,7 +321,13 @@ let adjustCoordinates (vGraph: VisGraph) =
   let width = rightMost - leftMost
   shiftXCoordinate (rightMost - width / 2.0) |> vGraph.IterVertex
 
+let adjustWidthOfDummies (vGraph: VisGraph) =
+  let maxWidth =
+    vGraph.FoldVertex (fun maxWidth v -> max maxWidth v.VData.Width) 0.0
+  vGraph.IterVertex (fun v -> v.VData.Width <- maxWidth)
+
 let assignCoordinates vGraph vLayout =
+  adjustWidthOfDummies vGraph
   assignXCoordinates vGraph vLayout
   assignYCoordinates vLayout
   adjustCoordinates vGraph

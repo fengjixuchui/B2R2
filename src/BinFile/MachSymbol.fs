@@ -1,8 +1,6 @@
 (*
   B2R2 - the Next-Generation Reversing Platform
 
-  Author: Sang Kil Cha <sangkilc@kaist.ac.kr>
-
   Copyright (c) SoftSec Lab. @ KAIST, since 2016
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -179,18 +177,18 @@ let parseExportTrieHead (reader: BinReader) trieOffset =
   let rec parseExportTrie offset str acc =
     let b = reader.PeekByte offset
     if b = 0uy then (* non-terminal *)
-      let numChildren, len = reader.PeekULEB128 (offset + 1)
+      let numChildren, len = reader.PeekUInt64LEB128 (offset + 1)
       parseChildren (offset + 1 + len) numChildren str acc
     else
-      let _, shift= reader.PeekULEB128 offset
+      let _, shift= reader.PeekUInt64LEB128 offset
       let _flag = reader.PeekByte (offset + shift)
-      let symbOffset, _ = reader.PeekULEB128 (offset + shift + 1)
+      let symbOffset, _ = reader.PeekUInt64LEB128 (offset + shift + 1)
       buildExportEntry str symbOffset :: acc
   and parseChildren offset numChildren str acc =
     if numChildren = 0UL then acc
     else
       let pref, nextOffset = readStr reader offset []
-      let nextNode, len = reader.PeekULEB128 nextOffset
+      let nextNode, len = reader.PeekUInt64LEB128 nextOffset
       let acc = parseExportTrie (int nextNode + trieOffset) (str + pref) acc
       parseChildren (nextOffset + len) (numChildren - 1UL) str acc
   parseExportTrie trieOffset "" []

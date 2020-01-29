@@ -1,8 +1,6 @@
 (*
   B2R2 - the Next-Generation Reversing Platform
 
-  Author: Sang Kil Cha <sangkilc@kaist.ac.kr>
-
   Copyright (c) SoftSec Lab. @ KAIST, since 2016
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -37,6 +35,12 @@ let futureFeature () =
   printfn "FATAL ERROR: NOT IMPLEMENTED FEATURE."
   trace.ToString () |> printfn "%s"
   raise <| NotImplementedException ()
+
+let impossible () =
+  let trace = Diagnostics.StackTrace (true)
+  printfn "FATAL ERROR: THIS IS INVALID AND SHOULD NEVER HAPPEN."
+  trace.ToString () |> printfn "%s"
+  raise <| InvalidOperationException ()
 
 let inline tap (f: 'a -> unit) (v: 'a) : 'a =
   f v; v

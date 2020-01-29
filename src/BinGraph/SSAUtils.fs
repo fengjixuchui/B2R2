@@ -1,9 +1,6 @@
 (*
   B2R2 - the Next-Generation Reversing Platform
 
-  Author: Soomin Kim <soomink@kaist.ac.kr>
-          Sang Kil Cha <sangkilc@kaist.ac.kr>
-
   Copyright (c) SoftSec Lab. @ KAIST, since 2016
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -91,7 +88,8 @@ let rec renameExpr stack = function
   | SSA.Num (_)
   | SSA.Undefined (_)
   | SSA.FuncName (_)
-  | SSA.Return (_) -> ()
+  | SSA.Return (_)
+  | SSA.Nil -> ()
   | SSA.Var v -> renameDest stack v
   | SSA.Load (v, _, expr) ->
     renameDest stack v

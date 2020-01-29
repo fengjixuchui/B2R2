@@ -1,9 +1,6 @@
 (*
   B2R2 - the Next-Generation Reversing Platform
 
-  Author: Sang Kil Cha <sangkilc@kaist.ac.kr>
-          Jaeseung Choi <jschoi17@kaist.ac.kr>
-
   Copyright (c) SoftSec Lab. @ KAIST, since 2016
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -28,7 +25,10 @@
 namespace B2R2.BinGraph
 
 open B2R2
+open B2R2.BinIR
+open B2R2.BinIR.LowUIR
 open B2R2.FrontEnd
+open B2R2.BinCorpus
 open B2R2.ConcEval
 open B2R2.BinGraph.EmulationHelper
 
@@ -52,8 +52,8 @@ module private LibcAnalysisHelper =
         | [] -> app
         | addrs ->
           addrs
-          |> List.map (InstrMap.translateEntry hdl)
-          |> BinaryApparatus.update hdl app
+          |> List.map (fun addr -> LeaderInfo.Init (hdl, addr))
+          |> Apparatus.update hdl app
     | Undef -> app
 
   let retrieveAddrsForx64 hdl app st =
@@ -68,8 +68,8 @@ module private LibcAnalysisHelper =
       | [] -> app
       | addrs ->
         addrs
-        |> List.map (InstrMap.translateEntry hdl)
-        |> BinaryApparatus.update hdl app
+        |> List.map (fun addr -> LeaderInfo.Init (hdl, addr))
+        |> Apparatus.update hdl app
 
   let retrieveLibcStartAddresses hdl app = function
     | None -> app
@@ -108,3 +108,36 @@ type LibcAnalysis () =
   interface IPostAnalysis with
     member __.Run hdl scfg app =
       LibcAnalysisHelper.recoverLibcEntries hdl scfg app
+
+type EVMCodeCopyAnalysis () =
+  let findCodeCopy stmts =
+    stmts
+    |> Array.tryPick (fun stmt ->
+      match stmt with
+      | Store (_, Num dst,
+                  BinOp (BinOpType.APP, _len,
+                         FuncName "code",
+                         BinOp (BinOpType.CONS, _, Num src, _, _, _), _, _)) ->
+        let dstAddr = BitVector.toUInt64 dst
+        let srcAddr = BitVector.toUInt64 src
+        let offset = srcAddr - dstAddr
+        let pp = ProgramPoint (srcAddr, 0)
+        LeaderInfo.Init (pp, ArchOperationMode.NoMode, offset) |> Some
+      | _ -> None)
+
+  let recoverCopiedCode hdl app =
+    app.InstrMap
+    |> Seq.fold (fun app (KeyValue (_, ins)) ->
+      match ins.Stmts |> findCodeCopy with
+      | None -> app
+      | Some leader ->
+        match app.CalleeMap.Find leader.Point.Address with
+        | None -> Apparatus.update hdl app [leader]
+        | Some _ -> app) app
+
+  interface IPostAnalysis with
+    member __.Run hdl _scfg app =
+      match hdl.FileInfo.ISA.Arch with
+      | Architecture.EVM -> recoverCopiedCode hdl app
+      | _ -> app
+

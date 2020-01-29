@@ -1,9 +1,6 @@
 (*
   B2R2 - the Next-Generation Reversing Platform
 
-  Author: Soomin Kim <soomink@kaist.ac.kr>
-          Sang Kil Cha <sangkilc@kaist.ac.kr>
-
   Copyright (c) SoftSec Lab. @ KAIST, since 2016
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -28,6 +25,7 @@
 namespace B2R2.BinGraph
 
 open B2R2
+open B2R2.BinCorpus
 open System.Collections.Generic
 
 /// Raised when the given address is not a start address of a function.
@@ -43,7 +41,7 @@ type SCFG (hdl, app) =
   let vertices = SCFGUtils.VMap ()
   let mutable boundaries = IntervalSet.empty
   do
-    let leaders = app.LeaderPositions |> Set.toArray
+    let leaders = app.LeaderInfos |> Set.toArray |> Array.map (fun l -> l.Point)
     for i = 0 to leaders.Length - 1 do
       SCFGUtils.createNode g app vertices leaders i
 #if DEBUG

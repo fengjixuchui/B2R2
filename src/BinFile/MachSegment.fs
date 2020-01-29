@@ -1,8 +1,6 @@
 (*
   B2R2 - the Next-Generation Reversing Platform
 
-  Author: Sang Kil Cha <sangkilc@kaist.ac.kr>
-
   Copyright (c) SoftSec Lab. @ KAIST, since 2016
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -45,8 +43,11 @@ let segCmdToSegment seg =
     Size = seg.VMSize
     Permission = seg.MaxProt |> LanguagePrimitives.EnumOfValue }
 
-let getAll mach =
+let getSegments mach isLoadable =
   mach.Segments
+  |> fun segs ->
+    if isLoadable then segs |> List.filter (fun s -> s.FileSize > 0UL)
+    else segs
   |> List.map segCmdToSegment
   |> List.toSeq
 

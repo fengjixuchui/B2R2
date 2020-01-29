@@ -1,9 +1,6 @@
 (*
   B2R2 - the Next-Generation Reversing Platform
 
-  Author: Sang Kil Cha <sangkilc@kaist.ac.kr>
-          Soomin Kim <soomink@kaist.ac.kr>
-
   Copyright (c) SoftSec Lab. @ KAIST, since 2016
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -32,27 +29,27 @@ open System.Collections.Generic
 
 type DomInfo<'V when 'V :> VertexData> = {
   /// Vertex ID -> DFNum
-  DFNumMap      : Dictionary<VertexID, int>
+  DFNumMap: Dictionary<VertexID, int>
   /// DFNum -> Vertex
-  Vertex        : Vertex<'V> []
+  Vertex: Vertex<'V> []
   /// DFNum -> DFNum in the ancestor chain s.t. DFNum of its Semi is minimal.
-  Label         : int []
+  Label: int []
   /// DFNum -> DFNum of the parent node (zero if not exists).
-  Parent        : int []
+  Parent: int []
   /// DFNum -> DFNum of the child node (zero if not exists).
-  Child         : int []
+  Child: int []
   /// DFNum -> DFNum of an ancestor.
-  Ancestor      : int []
+  Ancestor: int []
   /// DFNum -> DFNum of a semidominator.
-  Semi          : int []
+  Semi: int []
   /// DFNum -> set of DFNums (vertices that share the same sdom).
-  Bucket        : Set<int> []
+  Bucket: Set<int> []
   /// DFNum -> Size
-  Size          : int []
+  Size: int []
   /// DFNum -> DFNum of an immediate dominator.
-  IDom          : int []
+  IDom: int []
   /// Length of the arrays.
-  MaxLength     : int
+  MaxLength: int
 }
 
 /// Storing DomInfo of a graph. We use this to repeatedly compute doms/pdoms of
@@ -155,22 +152,9 @@ let rec computeDomOrDelay info parent =
   if info.Bucket.[parent].IsEmpty then ()
   else computeDom info parent
 
-/// Temporarily connect entry dummy node and real entry nodes.
-let connect (root: Vertex<_>) =
-  if root.IsDummy () then root
-  else
-    let dummyEntry = Vertex<_> ()
-    dummyEntry.Succs <- [root]
-    root.Preds <- dummyEntry :: root.Preds
-    dummyEntry
-
-/// Disconnect the dummy node and the entry nodes.
-let disconnect (root: Vertex<_>) =
-  root.Preds <- root.Preds |> List.filter (fun p -> p.GetID () <> 0)
-
 let initDominator (g: DiGraph<_, _>) root =
   let info = initDomInfo g
-  let dummyEntry = connect root
+  let dummyEntry = DummyEntry.Connect root
   let n = assignDFNum info 1 [(0, dummyEntry)]
   for i = n - 1 downto 2 do
     let v = info.Vertex.[i]
@@ -180,27 +164,12 @@ let initDominator (g: DiGraph<_, _>) root =
     link info p i (* Link the parent (p) to the forest. *)
     computeDomOrDelay info p
   done
-  disconnect root
   for i = 2 to n - 1 do
     if info.IDom.[i] <> info.Semi.[i] then
       info.IDom.[i] <- info.IDom.[info.IDom.[i]]
     else ()
   done
   info
-
-let topologicalOrder (visited, stack, orderMap, cnt) v =
-  let rec checkStack visited (stack: Vertex<_> list) orderMap cnt =
-    match stack with
-    | [] -> stack, orderMap, cnt
-    | v :: stack ->
-      if List.exists (fun s -> Set.contains s visited |> not) v.Succs then
-        v :: stack, orderMap, cnt
-      else
-        let orderMap = Map.add v cnt orderMap
-        checkStack visited stack orderMap (cnt - 1)
-  let visited = Set.add v visited
-  let stack, orderMap, cnt = checkStack visited (v :: stack) orderMap cnt
-  visited, stack, orderMap, cnt
 
 let updateReachMap exits reachMap =
   let rec loop reachMap = function
@@ -226,10 +195,9 @@ let rec calculateExits (fg: DiGraph<_, _>) (bg: DiGraph<_, _>) reachMap exits =
     calculateExits fg bg reachMap exits
 
 let preparePostDomAnalysis (fg: DiGraph<_, _>) root (bg: DiGraph<_, _>) =
-  // Remove backedges from forward graph
-  let size = fg.Size () - 1
-  let _, _, order, _ =
-    fg.FoldVertexDFS root topologicalOrder (Set.empty, [], Map.empty, size)
+  let _, orderMap =
+    Traversal.foldTopologically fg [root] (fun (cnt, map) v ->
+      cnt + 1, Map.add v cnt map) (0, Map.empty)
   let backEdges =
     fg.FoldEdge (fun acc (src: Vertex<_>) (dst: Vertex<_>) edge ->
       if src.GetID () = dst.GetID () then
@@ -237,7 +205,7 @@ let preparePostDomAnalysis (fg: DiGraph<_, _>) root (bg: DiGraph<_, _>) =
         (src, dst, edge) :: acc
       else acc) []
     |> fg.FoldEdge (fun acc (src: Vertex<_>) (dst: Vertex<_>) edge ->
-      if Map.find src order > Map.find dst order then
+      if Map.find src orderMap > Map.find dst orderMap then
         fg.RemoveEdge src dst
         (src, dst, edge) :: acc
       else acc)
@@ -295,9 +263,9 @@ let doms ctxt v =
 let pdoms ctxt v =
   domsAux [] v ctxt.BackwardDomInfo
 
-let computeDomTree (g: DiGraph<'V, 'E>) root info =
+let computeDomTree (g: DiGraph<'V, 'E>) info =
   let domTree = Array.create info.MaxLength []
-  g.IterVertexDFS root (fun v ->
+  g.IterVertex (fun v ->
     let idom = info.IDom.[dfnum info v]
     domTree.[idom] <- v :: domTree.[idom])
   domTree
@@ -310,19 +278,14 @@ let rec computeFrontierLocal s ctxt (parent: Vertex<_>) = function
     computeFrontierLocal s ctxt parent rest
   | [] -> s
 
-let rec computeDF
-    (domTree: Vertex<_> list [])
-    (frontiers: Vertex<_> list [])
-    g
-    ctxt
-    (r: Vertex<'V>) =
+let rec computeDF domTree (frontiers: Vertex<_> list []) g ctxt r =
   let mutable s = Set.empty
-  for succ in r.Succs do
+  for succ in (r: Vertex<'V>).Succs do
     let succID = dfnum ctxt succ
     let d = ctxt.Vertex.[ctxt.IDom.[succID]]
     if d.GetID () <> r.GetID () then s <- Set.add succID s
   done
-  for child in domTree.[dfnum ctxt r] do
+  for child in (domTree: Vertex<_> list []).[dfnum ctxt r] do
     computeDF domTree frontiers g ctxt child
     for node in frontiers.[dfnum ctxt child] do
       let doms = domsAux [] node ctxt
@@ -338,15 +301,14 @@ let frontier ctxt v =
   let root = ctxt.ForwardRoot
   let ctxt = ctxt.ForwardDomInfo
   let frontiers = Array.create ctxt.MaxLength []
-  let domTree = computeDomTree g root ctxt
+  let domTree = computeDomTree g ctxt
   computeDF domTree frontiers g ctxt root
   frontiers.[dfnum ctxt v]
 
 let dominatorTree ctxt =
   let g = ctxt.ForwardGraph
-  let root = ctxt.ForwardRoot
   let info = ctxt.ForwardDomInfo
-  let tree = computeDomTree g root info
+  let tree = computeDomTree g info
   let tree = Array.sub tree 2 (Array.length tree - 2) // Remove a dummy node
   let root = info.Vertex.[2]
   let tree =

@@ -1,9 +1,6 @@
 (*
   B2R2 - the Next-Generation Reversing Platform
 
-  Author: Seung Il Jung <sijung@kaist.ac.kr>
-          DongYeop Oh <oh51dy@kaist.ac.kr>
-
   Copyright (c) SoftSec Lab. @ KAIST, since 2016
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -431,16 +428,14 @@ let parse (reader: BinReader) arch wordSize addr pos =
   let instrLen = nextPos - pos |> uint32
   let opcode, cond, fmt, operands = parseOpcodeField arch bin
   let insInfo =
-    {
-      Address = addr
+    { Address = addr
       NumBytes = instrLen
       Condition = cond
       Fmt = fmt
       Opcode = opcode
       Operands = operands
       OperationSize = getOperationSize opcode wordSize
-      Arch = arch
-    }
+      Arch = arch }
   MIPSInstruction (addr, instrLen, insInfo, wordSize)
 
 // vim: set tw=80 sts=2 sw=2:

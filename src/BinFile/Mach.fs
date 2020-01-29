@@ -1,8 +1,6 @@
 (*
   B2R2 - the Next-Generation Reversing Platform
 
-  Author: Sang Kil Cha <sangkilc@kaist.ac.kr>
-
   Copyright (c) SoftSec Lab. @ KAIST, since 2016
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -108,7 +106,8 @@ type MachFileInfo (bytes, path, isa) =
     | Some s -> Seq.singleton (machSectionToSection mach.SegmentMap s)
     | None -> Seq.empty
 
-  override __.GetSegments () = Segment.getAll mach
+  override __.GetSegments (isLoadable) =
+    Segment.getSegments mach isLoadable
 
   override __.GetLinkageTableEntries () =
     mach.SymInfo.LinkageTable

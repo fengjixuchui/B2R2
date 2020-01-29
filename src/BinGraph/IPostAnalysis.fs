@@ -1,8 +1,6 @@
 (*
   B2R2 - the Next-Generation Reversing Platform
 
-  Author: Sang Kil Cha <sangkilc@kaist.ac.kr>
-
   Copyright (c) SoftSec Lab. @ KAIST, since 2016
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -27,9 +25,10 @@
 namespace B2R2.BinGraph
 
 open B2R2.FrontEnd
+open B2R2.BinCorpus
 
 /// CFG analysis that we perform after constructing the basic SCFG. Post
 /// analysis includes no-return analysis, libc start address analysis,
 /// switch-case analysis, etc.
 type IPostAnalysis =
-  abstract Run: BinHandler -> SCFG -> BinaryApparatus -> BinaryApparatus
+  abstract Run: BinHandler -> SCFG -> Apparatus -> Apparatus

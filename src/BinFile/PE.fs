@@ -1,8 +1,6 @@
 (*
   B2R2 - the Next-Generation Reversing Platform
 
-  Author: Sang Kil Cha <sangkilc@kaist.ac.kr>
-
   Copyright (c) SoftSec Lab. @ KAIST, since 2016
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -134,7 +132,7 @@ type PEFileInfo (bytes, path, ?rawpdb) =
     | None -> Seq.empty
     | Some sec -> secHdrToSection pe sec |> Seq.singleton
 
-  override __.GetSegments () =
+  override __.GetSegments (_isLoadable) =
     let getSecPermission (chr: SectionCharacteristics) =
       let x = if chr.HasFlag SectionCharacteristics.MemExecute then 1 else 0
       let w = if chr.HasFlag SectionCharacteristics.MemWrite then 2 else 0

@@ -1,9 +1,6 @@
 (*
   B2R2 - the Next-Generation Reversing Platform
 
-  Author: Mehdi Aghakishiyev <agakisiyev.mehdi@gmail.com>
-          Sang Kil Cha <sangkilc@kaist.ac.kr>
-
   Copyright (c) SoftSec Lab. @ KAIST, since 2016
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -30,153 +27,114 @@ open FParsec
 open System.Numerics
 open SimpleArithHelper
 open SimpleArithConverter
-open Size
-open DataType
+open B2R2
 
 type SimpleArithEvaluator () =
-  let final str flag =
-    let str, err = concatenate "" str 0
-    if err = 0 then
-      match run SimpleArithParser.expr str with
-        | Success ((CError _, NError (a, b)), _, _) ->
-          let result = str + "\n"
-          let space = sprintf "%*s^" (int(b) - 2) ""
-          let fin = result + space + "\n" + a
-          [|fin|]
-        | Success (v, _, p) ->
-          if p.Column <> int64 (str.Length + 1) then
-            let result = str + "\n"
-            let space = sprintf "%*s^" (int(p.Column) - 2) ""
-            let fin =
-              result + space + "\n" + "Expecting: Digit, Suffix or Operator"
-            [|fin|]
+  /// Concatenating given array of strings. Returning place of error when there
+  /// is space between digits of number.
+  let concatenate arg =
+    let rec doConcatenation res input errorPos =
+      match input with
+      | [] -> (res, errorPos)
+      | hd :: tail ->
+        if hd = "" then
+          doConcatenation res tail errorPos
+        elif res = "" then
+          doConcatenation (res + hd) tail errorPos
+        else
+          let lastChar = res.[res.Length - 1]
+          let firstChar = hd.[0]
+          if System.Char.IsDigit lastChar && System.Char.IsDigit firstChar then
+            doConcatenation (res + " " + hd) tail res.Length
           else
-            let value = Numbers.getValue (snd v)
-            let str = (getWhole value)
-            let int_value = BigInteger.Parse str
-            let int_value =
-              if (DataType.getType (fst v) = 2 &&
-                  snd (checkFloat value) = false &&
-                  int_value <= 0I) then (int_value - 1I)
-              else int_value
-            if flag = 0 || flag = 1 || flag = 2 || flag = 3 then
-              let size = (getPriority (getSize (fst v)))
-              [| final_converter int_value flag size |]
-            else
-              if value.IndexOf ('.') = -1 then [| value + ".0" |]
-              else [| value |]
-        | Failure (v, _, _) ->
-          [|v|]
-     else
-       let result = str + "\n"
-       let space = sprintf "%*s^" (err) ""
-       let fin = result + space + "\n" + "Expecting: Digit or Operator"
-       [|fin|]
+            doConcatenation (res + " " + hd) tail errorPos
+    doConcatenation "" arg 0
 
-  member __.Run str flag = final str flag
+  let processError str (position: Position) =
+    let result = str + "\n"
+    let space = sprintf "%*s^" (int position.Column - 2) ""
+    [| result + space + "\n" + "Expecting: Digit, Suffix or Operator" |]
 
-type CmdEvalExpr () =
+  let processIntegerorFloat result typ =
+    let value = Number.toString result
+    let str = getIntegerPart value
+    let intValue = BigInteger.Parse str
+    let intValue =
+      if hasZeroFraction value = false && result.FloatValue < 0.0 then
+        intValue - 1I
+      else intValue
+    match typ with
+    | DecimalF | OctalF | HexadecimalF | BinaryF ->
+      [| getOutputValueString intValue typ result.Type |]
+    | _ ->
+      if value.IndexOf '.' = -1 then [| value + ".0" |]
+      else [| value |]
+
+  let checkIntegerOrFloatResult (str: string) result (position: Position) typ =
+    if position.Column <> int64 (str.Length + 1) then
+      processError str position
+    else
+      processIntegerorFloat result typ
+
+  let postProcess str result position typ =
+    match result.Type with
+    | CError pos -> ErrorMessage.constructErrorMessage str pos
+    | _ -> checkIntegerOrFloatResult str result position typ
+
+  let processArithmetic str representation =
+    match run SimpleArithParser.expr str with
+    | Success (v, _, p) ->
+      postProcess str v p representation
+    | Failure (v, _, _) ->
+      [| v |]
+
+  let processASCIIError str (position: Position) =
+    let result = str + "\n"
+    let space = sprintf "%*s^" (int position.Column - 2) ""
+    [| result + space + "\n" + "Wrong Input" |]
+
+  let processASCIICharacters str =
+    match SimpleArithASCIIPArser.run str with
+    | Success (v, _, position) ->
+      if position.Column <> int64 (str.Length + 1) then
+        processASCIIError str position
+      else
+        processBytes v
+    | Failure (v, _, _) ->
+      [| v |]
+
+  member __.Run args representation =
+    let str, err = concatenate args
+    if err = 0 then
+      if representation = CharacterF then
+        processASCIICharacters str
+      else
+        processArithmetic str representation
+    else
+      let result = str + "\n"
+      let space = sprintf "%*s^" err ""
+      [| result + space + "\n" + "Expecting: Digit or Operator" |]
+
+type CmdEvalExpr (name, alias, descrSuffix, helpSuffix, outFormat) =
   inherit Cmd ()
 
-  override __.CmdName = "?"
+  let evaluator = SimpleArithEvaluator ()
 
-  override __.CmdAlias = ["?x"]
+  override __.CmdName = name
 
-  override __.CmdDescr = "Evaluates and displays the value of an expression."
+  override __.CmdAlias = alias
+
+  override __.CmdDescr =
+    "Evaluate and display the value of an expression in " + descrSuffix + "."
 
   override __.CmdHelp =
-    "Usage: ? <expression>\n\n\
-     Evaluates the given expression and prints out the value. This command\n\
+    "Usage: ?" + helpSuffix + " <expression>\n\n\
+     Evaluate the given expression and print out the value. This command\n\
      supports basic arithmetic expressions."
 
   override __.SubCommands = []
 
   override __.CallBack _ _ args =
     match args with
-    | [] -> [|__.CmdHelp|]
-    | _ -> SimpleArithEvaluator().Run args 0
-
-type CmdEvalExprDecimal () =
-  inherit Cmd ()
-
-  override __.CmdName = "?d"
-
-  override __.CmdAlias = []
-
-  override __.CmdDescr = "Evaluates and displays the value of an expression."
-
-  override __.CmdHelp =
-    "Usage: ? <expression>\n\n\
-     Evaluates the given expression and prints out the value. This command\n\
-     supports basic arithmetic expressions."
-
-  override __.SubCommands = []
-
-  override __.CallBack _ _ args =
-    match args with
-    | [] -> [|__.CmdHelp|]
-    | _ -> SimpleArithEvaluator().Run args 1
-
-type CmdEvalExprBinary () =
-  inherit Cmd ()
-
-  override __.CmdName = "?b"
-
-  override __.CmdAlias = []
-
-  override __.CmdDescr = "Evaluates and displays the value of an expression."
-
-  override __.CmdHelp =
-    "Usage: ? <expression>\n\n\
-     Evaluates the given expression and prints out the value. This command\n\
-     supports basic arithmetic expressions."
-
-  override __.SubCommands = []
-
-  override __.CallBack _ _ args =
-    match args with
-    | [] -> [|__.CmdHelp|]
-    | _ -> SimpleArithEvaluator().Run args 2
-
-type CmdEvalExprOctal () =
-  inherit Cmd ()
-
-  override __.CmdName = "?o"
-
-  override __.CmdAlias = []
-
-  override __.CmdDescr = "Evaluates and displays the value of an expression."
-
-  override __.CmdHelp =
-    "Usage: ? <expression>\n\n\
-     Evaluates the given expression and prints out the value. This command\n\
-     supports basic arithmetic expressions."
-
-  override __.SubCommands = []
-
-  override __.CallBack _ _ args =
-    match args with
-    | [] -> [|__.CmdHelp|]
-    | _ -> SimpleArithEvaluator().Run args 3
-
-type CmdEvalExprFloat () =
-  inherit Cmd ()
-
-  override __.CmdName = "?f"
-
-  override __.CmdAlias = []
-
-  override __.CmdDescr = "Evaluates and displays the value of an expression."
-
-  override __.CmdHelp =
-    "Usage: ? <expression>\n\n\
-     Evaluates the given expression and prints out the value. This command\n\
-     supports basic arithmetic expressions."
-
-  override __.SubCommands = []
-
-  override __.CallBack _ _ args =
-    match args with
-    | [] -> [|__.CmdHelp|]
-    | _ -> SimpleArithEvaluator().Run args 4
-
+    | [] -> [| __.CmdHelp |]
+    | _ -> evaluator.Run args outFormat

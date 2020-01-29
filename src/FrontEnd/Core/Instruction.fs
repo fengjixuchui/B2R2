@@ -1,8 +1,6 @@
 (*
   B2R2 - the Next-Generation Reversing Platform
 
-  Author: Sang Kil Cha <sangkilc@kaist.ac.kr>
-
   Copyright (c) SoftSec Lab. @ KAIST, since 2016
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -163,7 +161,7 @@ type Instruction (addr, numBytes, wordSize) =
   ///   Return a trampoline address of an indirect branch instruction if we can
   ///   directly compute the address. For example, `JMP [RIP + 0x42]` is an
   ///   indirect branch instruction, but we can compute the trampoline address
-  ///   as RIP is statically known anyways.
+  ///   as RIP is statically known anyways when PIC is off.
   /// </summary>
   /// <returns>
   ///   Returns true if a trampoline address exists. Otherwise, returns false.

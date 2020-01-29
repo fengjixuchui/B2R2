@@ -1,8 +1,6 @@
 (*
   B2R2 - the Next-Generation Reversing Platform
 
-  Author: Sang Kil Cha <sangkilc@kaist.ac.kr>
-
   Copyright (c) SoftSec Lab. @ KAIST, since 2016
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -36,6 +34,7 @@ let rec private expToStringAux expr (sb: StringBuilder) =
   match expr with
   | Num n -> sb.Append (BitVector.toString n) |> ignore
   | Var (_typ, _, n, _) -> sb.Append (n) |> ignore
+  | Nil -> sb.Append ("nil") |> ignore
   | PCVar (_typ, n) -> sb.Append (n) |> ignore
   | TempVar (typ, n) ->
     sb.Append ("T_") |> ignore

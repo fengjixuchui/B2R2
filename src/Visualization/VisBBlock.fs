@@ -1,8 +1,6 @@
 (*
   B2R2 - the Next-Generation Reversing Platform
 
-  Author: Sang Kil Cha <sangkilc@kaist.ac.kr>
-
   Copyright (c) SoftSec Lab. @ KAIST, since 2016
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -53,7 +51,8 @@ type VisBBlock (blk: BasicBlock, isDummy) =
   /// This number (7.5) is empirically obtained with the current font. For some
   /// reasons, we cannot precisely determine the width of each text even though
   /// we are using a fixed-width font. *)
-  let width = if isDummy then 0.0 else maxLineWidth * 7.5 + padding * 2.0
+  let mutable width =
+    if isDummy then 0.0 else maxLineWidth * 7.5 + padding * 2.0
 
   let numLines = visBlock |> Array.length
 
@@ -73,7 +72,7 @@ type VisBBlock (blk: BasicBlock, isDummy) =
   member __.IsDummy with get () = isDummy
 
   /// The width of the node.
-  member __.Width with get () = width
+  member __.Width with get () = width and set (v) = width <- v
 
   /// The height of the node.
   member __.Height with get () = height

@@ -1,9 +1,6 @@
 (*
   B2R2 - the Next-Generation Reversing Platform
 
-  Author: Soomin Kim <soomink@kaist.ac.kr>
-          Sang Kil Cha <sangkilc@kaist.ac.kr>
-
   Copyright (c) SoftSec Lab. @ KAIST, since 2016
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -76,10 +73,3 @@ module VisGraph =
 
   let getYPos (v: Vertex<VisBBlock>) = v.VData.Coordinate.Y
 
-  let getTopologicalOrder (g: VisGraph) roots =
-    let size = g.Size () - 1
-    let _, _, topoOrder, _ =
-      roots |> List.fold (fun acc root ->
-        g.FoldVertexDFS root Algorithms.topologicalOrdering acc
-      ) (Set.empty, [], Map.empty, size)
-    topoOrder

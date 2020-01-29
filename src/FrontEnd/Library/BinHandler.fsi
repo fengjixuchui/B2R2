@@ -1,9 +1,6 @@
 (*
   B2R2 - the Next-Generation Reversing Platform
 
-  Author: Sang Kil Cha <sangkilc@kaist.ac.kr>
-          Minkyu Jung <hestati@kaist.ac.kr>
-
   Copyright (c) SoftSec Lab. @ KAIST, since 2016
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -134,9 +131,10 @@ with
   ///   Initialize a BinHandler from an ISA and a binary file path, assuming
   ///   that the archMode is NoMode. B2R2 will automatically detect the file
   ///   format of the given binary file, but it will refer to the given ISA
-  ///   parameter when the binary has multiple architectures, e.g., a fat binary
-  ///   on macOS. If the given binary file does not follow the known formats,
-  ///   then B2R2 consider it as a raw binary with base address at 0.
+  ///   parameter either when the binary has multiple architectures, e.g., a fat
+  ///   binary on macOS, or when B2R2 cannot recognize the given file format. If
+  ///   the given binary file does not follow the known formats, then B2R2
+  ///   consider it as a raw binary with base address at 0.
   /// </summary>
   /// <param name="isa">ISA.</param>
   /// <param name="fileName">Binary file path.</param>
@@ -281,7 +279,7 @@ with
   /// Lift a parsed instruction (Instruction) to produce an array of IR
   /// statements from a given BinHandler.
   static member inline LiftInstr:
-    handler: BinHandler -> ins: Instruction -> BinIR.LowUIR.Stmt []
+    handler: BinHandler -> ins: Instruction -> LowUIR.Stmt []
 
   /// Return the lifted IR (an array of statements) of a basic block at the
   /// given address. This function returns a partial bblock with Error, if the
@@ -350,7 +348,7 @@ with
   /// <summary>
   /// Return optimized statements from the given statements.
   /// </summary>
-  static member Optimize: stmts: BinIR.LowUIR.Stmt [] -> BinIR.LowUIR.Stmt []
+  static member Optimize: stmts: LowUIR.Stmt [] -> LowUIR.Stmt []
 
   /// <summary>
   /// Return the task that lift a basic block and next address.
@@ -362,6 +360,6 @@ with
      * addr: Addr
      * optimize: bool
      * nxt: byref<Addr>
-     -> Task<BinIR.LowUIR.Stmt [] * bool>
+     -> Task<LowUIR.Stmt [] * bool>
 
 // vim: set tw=80 sts=2 sw=2:

@@ -1,8 +1,6 @@
 (*
   B2R2 - the Next-Generation Reversing Platform
 
-  Author: Sang Kil Cha <sangkilc@kaist.ac.kr>
-
   Copyright (c) SoftSec Lab. @ KAIST, since 2016
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -44,8 +42,7 @@ let private machBinary reader =
   else None
 
 /// <summary>
-///   Given a byte array, identify its file format and return a tuple of
-///   (B2R2.FileFormat and B2R2.ISA).
+///   Given a byte array, identify its file format and return B2R2.FileFormat.
 /// </summary>
 [<CompiledName("Detect")>]
 let detectBuffer bytes =
@@ -57,10 +54,9 @@ let detectBuffer bytes =
     yield! Some FileFormat.RawBinary
   } |> Option.get
 
-
 /// <summary>
-///   Given a binary file path, identify its file format and return a tuple of
-///   (B2R2.FileFormat and B2R2.ISA).
+///   Given a binary file path, identify its file format and return
+///   B2R2.FileFormat.
 /// </summary>
 [<CompiledName("Detect")>]
 let detect file =

@@ -1,8 +1,6 @@
 (*
   B2R2 - the Next-Generation Reversing Platform
 
-  Author: Minkyu Jung <hestati@kaist.ac.kr>
-
   Copyright (c) SoftSec Lab. @ KAIST, since 2016
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -34,11 +32,13 @@ exception TagMismatchException
 /// A tag used in RegisterSet for identifying distinct set of registers for
 /// different ISAs.
 type RegisterSetTag =
-  | Empty  = 0
-  | Intel  = 1
-  | ARM32  = 2
-  | ARM64  = 3
-  | MIPS   = 4
+  | Empty = 0
+  | Intel = 1
+  | ARM32 = 2
+  | ARM64 = 3
+  | MIPS = 4
+  | EVM = 5
+  | TMS320C6000 = 6
 
 /// RegisterSet is an efficient set data structure for managing a set of
 /// registers.

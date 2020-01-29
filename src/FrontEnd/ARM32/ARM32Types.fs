@@ -1,9 +1,6 @@
 (*
   B2R2 - the Next-Generation Reversing Platform
 
-  Author: Seung Il Jung <sijung@kaist.ac.kr>
-          DongYeop Oh <oh51dy@kaist.ac.kr>
-
   Copyright (c) SoftSec Lab. @ KAIST, since 2016
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -1543,6 +1540,7 @@ type Operand =
   | OprIflag of Iflag
   | OprEndian of Endian
   | OprCond of Condition
+  | GoToLabel of string
 
 type Operands =
   | NoOperand

@@ -1,8 +1,6 @@
 (*
   B2R2 - the Next-Generation Reversing Platform
 
-  Author: Sang Kil Cha <sangkilc@kaist.ac.kr>
-
   Copyright (c) SoftSec Lab. @ KAIST, since 2016
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -81,7 +79,7 @@ type RawFileInfo (bytes: byte [], baseAddr, isa) =
 
   override __.GetSectionsByName (_: string) = Seq.empty
 
-  override __.GetSegments () =
+  override __.GetSegments (_isLoadable) =
     Seq.singleton {
       Address = baseAddr
       Size = uint64 bytes.LongLength

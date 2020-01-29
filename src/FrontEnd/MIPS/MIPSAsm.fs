@@ -1,8 +1,5 @@
-﻿(*
+(*
   B2R2 - the Next-Generation Reversing Platform
-
-  Author: Michael Tegegn <mick@kaist.ac.kr>
-          Sang Kil Cha <sangkilc@kaist.ac.kr>
 
   Copyright (c) SoftSec Lab. @ KAIST, since 2016
 
@@ -30,8 +27,8 @@ namespace B2R2.FrontEnd.MIPS
 open B2R2
 open B2R2.BinIR.LowUIR
 
-type ParseHelper (wordSize) =
-  inherit RegParseHelper ()
+type RegFactory (wordSize) =
+  inherit RegisterFactory ()
 
   let R = RegExprs (wordSize)
 

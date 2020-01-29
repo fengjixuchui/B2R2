@@ -9,9 +9,6 @@
 (*
   B2R2 - the Next-Generation Reversing Platform
 
-  Author: DongYeop Oh <oh51dy@kaist.ac.kr>
-          Seung Il Jung <sijung@kaist.ac.kr>
-
   Copyright (c) SoftSec Lab. @ KAIST, since 2016
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -260,7 +257,7 @@ let opVEX =
                     Opcode.InvalOP; Opcode.InvalOP |])
    ("opVex0F76", [| Opcode.InvalOP; Opcode.VPCMPEQD;
                     Opcode.InvalOP; Opcode.InvalOP |])
-   ("opNor0F77", [| Opcode.InvalOP; Opcode.InvalOP;
+   ("opNor0F77", [| Opcode.EMMS; Opcode.InvalOP;
                     Opcode.InvalOP; Opcode.InvalOP |])
    ("opVex0F77", [| Opcode.VZEROUPPER; Opcode.InvalOP;
                     Opcode.InvalOP; Opcode.InvalOP |])

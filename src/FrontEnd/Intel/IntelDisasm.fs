@@ -1,10 +1,6 @@
 (*
   B2R2 - the Next-Generation Reversing Platform
 
-  Author: Sang Kil Cha <sangkilc@kaist.ac.kr>
-          DongYeop Oh <oh51dy@kaist.ac.kr>
-          Seung Il Jung <sijung@kaist.ac.kr>
-
   Copyright (c) SoftSec Lab. @ KAIST, since 2016
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -314,6 +310,7 @@ let opCodeToString = function
   | Opcode.DIVPS -> "divps"
   | Opcode.DIVSD -> "divsd"
   | Opcode.DIVSS -> "divss"
+  | Opcode.EMMS -> "emms"
   | Opcode.ENTER -> "enter"
   | Opcode.F2XM1 -> "f2xm1"
   | Opcode.FABS -> "fabs"
@@ -986,12 +983,6 @@ let inline private iToHexStr (i: int64) builder acc =
 let inline private uToHexStr (i: uint64) builder acc =
   builder AsmWordKind.Value ("0x" + i.ToString("X")) acc
 
-let inline buildAddr (addr: Addr) wordSize showAddress builder acc =
-  if not showAddress then acc
-  else
-    builder AsmWordKind.Address (Addr.toString wordSize addr) acc
-    |> builder AsmWordKind.String (": ")
-
 let inline private ptrDirectiveString isFar = function
   | 1 -> "byte ptr"
   | 2 -> "word ptr"
@@ -1127,6 +1118,7 @@ let oprToString wordSz ins insAddr fi opr isFstOpr builder acc =
   | OprImm imm -> iToHexStr imm builder acc
   | OprDirAddr (Absolute (sel, offset, _)) -> absToString sel offset builder acc
   | OprDirAddr (Relative (offset)) -> relToString insAddr offset fi builder acc
+  | GoToLabel _ -> failwith "Only used in assembly parser"
 
 let inline buildPref (prefs: Prefix) builder acc =
   if (prefs &&& Prefix.PrxLOCK) <> Prefix.PrxNone then
@@ -1190,10 +1182,10 @@ let buildOprs ins insLen pc fi wordSz builder acc =
     |> builder AsmWordKind.String ", "
     |> oprToString wordSz ins pc fi opr4 false builder
 
-let disasm showAddr wordSize fi ins insAddr insLen builder acc =
-  buildAddr insAddr wordSize showAddr builder acc
+let disasm showAddr wordSize fi ins pc insLen builder acc =
+  DisasmBuilder.addr pc wordSize showAddr builder acc
   |> buildPref ins.Prefixes builder
   |> buildOpcode ins.Opcode builder
-  |> buildOprs ins insLen insAddr fi wordSize builder
+  |> buildOprs ins insLen pc fi wordSize builder
 
 // vim: set tw=80 sts=2 sw=2:

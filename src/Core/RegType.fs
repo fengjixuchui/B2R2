@@ -1,9 +1,6 @@
 (*
   B2R2 - the Next-Generation Reversing Platform
 
-  Author: Sang Kil Cha <sangkilc@kaist.ac.kr>
-          Minkyu Jung <hestati@kaist.ac.kr>
-
   Copyright (c) SoftSec Lab. @ KAIST, since 2016
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -57,7 +54,7 @@ module RegType =
 
 #if DEBUG
   let checkIfValidRegType t =
-    if t > 0<rt> && t <= 512<rt> then ()
+    if t > 0<rt> then ()
     elif t < 0<rt> && t >= -512<rt> then ()
     else raise InvalidRegTypeException
 #endif
@@ -139,7 +136,7 @@ module RegType =
   ///   Get a bitmask (in integer) from the given RegType.
   /// </summary>
   /// <returns>
-  ///   A bit mask in integer.
+  ///   A bit mask in big integer.
   /// </returns>
   let getMask = function
     | 1<rt> -> 1I
@@ -150,4 +147,20 @@ module RegType =
     | 128<rt> -> BigInteger.mask128
     | 256<rt> -> BigInteger.mask256
     | 512<rt> -> BigInteger.mask512
+    | t when t < 512<rt> -> (bigint.One <<< (int t)) - bigint.One
+    | _ -> raise InvalidRegTypeException
+
+  /// <summary>
+  ///   Get a bitmask (in integer) from the given RegType.
+  /// </summary>
+  /// <returns>
+  ///   A bit mask in uint64.
+  /// </returns>
+  let getUInt64Mask = function
+    | 1<rt> -> 1UL
+    | 8<rt> -> 255UL
+    | 16<rt> -> 65535UL
+    | 32<rt> -> 4294967295UL
+    | 64<rt> -> 18446744073709551615UL
+    | t when t < 64<rt> -> (1UL <<< (int t)) - 1UL
     | _ -> raise InvalidRegTypeException

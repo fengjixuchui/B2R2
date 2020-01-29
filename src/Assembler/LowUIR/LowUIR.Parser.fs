@@ -1,9 +1,6 @@
 (*
   B2R2 - the Next-Generation Reversing Platform
 
-  Author: Michael Tegegn <mick@kaist.ac.kr>
-          Sang Kil Cha <sangkilc@kaist.ac.kr>
-
   Copyright (c) SoftSec Lab. @ KAIST, since 2016
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -36,7 +33,7 @@ type ExpectedType = RegType
 
 type Parser<'t> = Parser<'t, ExpectedType>
 
-type LowUIRParser (isa, pHelper: RegParseHelper) =
+type LowUIRParser (isa, regfactory: RegisterFactory) =
 
   (* Functions to help with manipulating the userState *)
   let makeExpectedType c =
@@ -100,11 +97,11 @@ type LowUIRParser (isa, pHelper: RegParseHelper) =
   let pNumE = pBitVector |>> AST.num
 
   let pVarE =
-    List.map pCaseString pHelper.RegNames |> List.map attempt
-    |> choice |>> pHelper.StrToReg
+    List.map pCaseString regfactory.RegNames |> List.map attempt
+    |> choice |>> regfactory.StrToReg
 
   let pPCVarE =
-    pNormalString |>> pHelper.StrToReg
+    pNormalString |>> regfactory.StrToReg
 
   let pTempVarE =
     spaces >>. pstring "T_" >>. pint32 .>> spaces .>> pchar ':' .>> spaces

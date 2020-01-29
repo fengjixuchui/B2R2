@@ -1,8 +1,6 @@
 (*
   B2R2 - the Next-Generation Reversing Platform
 
-  Author: Sang Kil Cha <sangkilc@kaist.ac.kr>
-
   Copyright (c) SoftSec Lab. @ KAIST, since 2016
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -29,7 +27,8 @@ namespace B2R2.Utilities.BinExplorer
 open B2R2
 open B2R2.BinFile
 open B2R2.FrontEnd
-open B2R2.BinGraph
+open B2R2.BinCorpus
+open B2R2.MiddleEnd
 
 type CmdList () =
   inherit Cmd ()
@@ -38,8 +37,8 @@ type CmdList () =
     Addr.toString hdl.ISA.WordSize addr + ": " + name
 
   let listFunctions hdl app =
-    BinaryApparatus.getInternalFunctions app
-    |> Seq.map (fun c -> Option.get c.Addr, c.CalleeName)
+    Apparatus.getInternalFunctions app
+    |> Seq.map (fun c -> Option.get c.Addr, c.CalleeID)
     |> Seq.sortBy fst
     |> Seq.map (createFuncString hdl)
     |> Seq.toArray
@@ -89,7 +88,7 @@ type CmdList () =
   override __.CallBack _ (ess: BinEssence) args =
     match args with
     | "functions" :: _
-    | "funcs" :: _ -> listFunctions ess.BinHandler ess.BinaryApparatus
+    | "funcs" :: _ -> listFunctions ess.BinHandler ess.Apparatus
     | "segments" :: _
     | "segs" :: _ -> listSegments ess.BinHandler
     | "sections" :: _

@@ -1,8 +1,6 @@
 (*
   B2R2 - the Next-Generation Reversing Platform
 
-  Author: Seung Il Jung <sijung@kaist.ac.kr>
-
   Copyright (c) SoftSec Lab. @ KAIST, since 2016
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -33,7 +31,7 @@ open System.Text
 /// The internal representation for a MIPS instruction used by our
 /// disassembler and lifter.
 type MIPSInstruction (addr, numBytes, insInfo, wordSize) =
-  inherit FrontEnd.Instruction (addr, numBytes, wordSize)
+  inherit Instruction (addr, numBytes, wordSize)
 
   /// Basic instruction information.
   member val Info: InsInfo = insInfo

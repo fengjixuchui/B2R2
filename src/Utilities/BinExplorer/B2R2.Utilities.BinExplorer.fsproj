@@ -1,8 +1,8 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>netcoreapp2.0</TargetFramework>
+    <TargetFramework>netcoreapp3.0</TargetFramework>
     <IsPackable>false</IsPackable>
     <IsTestProject>false</IsTestProject>
   </PropertyGroup>
@@ -15,10 +15,10 @@
     <Compile Include="Credits.fs" />
     <Compile Include="Demangle.fs" />
     <Compile Include="SimpleArithReference.fs" />
-    <Compile Include="SimpleArithConverter.fs" />
-    <Compile Include="SimpleArithHelper.fs" />
     <Compile Include="SimpleArithTypes.fs" />
-    <Compile Include="SimpleArithOperate.fs" />
+    <Compile Include="SimpleArithHelper.fs" />
+    <Compile Include="SimpleArithConverter.fs" />
+    <Compile Include="SimpleArithOperator.fs" />
     <Compile Include="SimpleArithParser.fs" />
     <Compile Include="EvalExpr.fs" />
     <Compile Include="List.fs" />
@@ -40,6 +40,7 @@
     <ProjectReference Include="..\..\FrontEnd\Core\B2R2.FrontEnd.Core.fsproj" />
     <ProjectReference Include="..\..\FrontEnd\Library\B2R2.FrontEnd.Library.fsproj" />
     <ProjectReference Include="..\..\BinGraph\B2R2.BinGraph.fsproj" />
+    <ProjectReference Include="..\..\MiddleEnd\B2R2.MiddleEnd.fsproj" />
     <ProjectReference Include="..\..\ROP\B2R2.ROP.fsproj" />
     <ProjectReference Include="..\..\Visualization\B2R2.Visualization.fsproj" />
     <ProjectReference Include="..\..\NameMangling\B2R2.NameMangling.fsproj" />
@@ -47,7 +48,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="B2R2.FsReadLine" Version="0.1.1" />
+    <PackageReference Include="B2R2.FsReadLine" Version="0.1.2" />
     <PackageReference Include="FParsec" Version="1.0.3" />
   </ItemGroup>
 

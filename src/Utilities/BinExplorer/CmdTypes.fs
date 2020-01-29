@@ -1,8 +1,6 @@
 (*
   B2R2 - the Next-Generation Reversing Platform
 
-  Author: Sang Kil Cha <sangkilc@kaist.ac.kr>
-
   Copyright (c) SoftSec Lab. @ KAIST, since 2016
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -26,7 +24,7 @@
 
 namespace B2R2.Utilities.BinExplorer
 
-open B2R2.BinGraph
+open B2R2.MiddleEnd
 
 /// Raised when there are duplicate commands with the same name or alias.
 exception DuplicateCommandException
